@@ -1,21 +1,30 @@
-# Ứng dụng quản lý thư viện — Bản PHP (XAMPP + MySQL)
+# Hệ thống Quản lý Thư viện — Checkin/Checkout
 
-Bản này viết lại bằng PHP thuần + MySQL, dùng chung được với XAMPP —
-không kèm dữ liệu mẫu, bạn tự nhập sách và thành viên qua giao diện.
+Ứng dụng web quản lý mượn/trả sách cho thư viện trường học, xây dựng bằng **PHP thuần + MySQL/MariaDB**, giao diện HTML/CSS/JavaScript thuần (không dùng framework).
 
-## Yêu cầu
-- Đã cài XAMPP (gồm Apache + MySQL + phpMyAdmin): tải tại https://www.apachefriends.org
+**Demo trực tuyến:** https://library-fu.onrender.com
 
-## Cách chạy
+## Tính năng chính
 
-1. Copy toàn bộ thư mục `library-php` vào trong `C:\xampp\htdocs\`,
-   có thể đổi tên thư mục thành `library-app` cho gọn.
-2. Mở XAMPP Control Panel, bấm **Start** ở dòng Apache và dòng MySQL.
-3. Mở trình duyệt vào `http://localhost/phpmyadmin`.
-4. Vào tab **SQL**, dán toàn bộ nội dung file `schema.sql` vào rồi bấm **Go**
-   để tạo database `library_db` và các bảng cần thiết (chưa có dữ liệu mẫu).
-5. Mở trình duyệt vào `http://localhost/library-app/` (đổi tên cho đúng
-   thư mục bạn đã đặt ở bước 1).
+- Tìm kiếm sách theo tên, tác giả, mã môn học
+- Mượn sách theo tài khoản học sinh (mã số học sinh)
+- Trả sách, tự động tính phạt nếu trễ hạn
+- Tự động đánh dấu phiếu mượn quá hạn
+- Khu vực Quản lý (thủ thư) có đăng nhập riêng:
+- Thêm sách mới, thêm thành viên
+- Xem toàn bộ lịch sử mượn/trả
+
+## Công nghệ sử dụng
+
+| Thành phần | Công nghệ |
+|---|---|
+| Backend | PHP 8.2 (PDO, không dùng framework) |
+| Database | MySQL / MariaDB |
+| Frontend | HTML5, CSS3, JavaScript thuần (Fetch API) |
+| Triển khai | Docker, Render (Web Service) |
+| Database hosting | SkySQL (MariaDB Cloud, miễn phí) |
+
+## Cấu trúc dự án
 
 ## Cấu trúc dự án
 

@@ -38,34 +38,51 @@ library-php/
 ├── style.css
 └── app.js
 
-## Vì sao chưa có dữ liệu mẫu
 
-Theo yêu cầu, bản này để trống — bạn cần tự thêm sách và thành viên qua
-giao diện web (tab "Quản lý") trước khi thử mượn/trả, hoặc nhập trực tiếp
-qua phpMyAdmin nếu muốn thêm nhanh nhiều dòng cùng lúc.
+## Chạy trên máy local (XAMPP)
 
-## Những phần cần làm thêm để dùng thật
+1. Đã cài [XAMPP](https://www.apachefriends.org) (gồm Apache + MySQL + phpMyAdmin).
+2. Copy toàn bộ thư mục `library-php` vào `C:\xampp\htdocs\`.
+3. Mở XAMPP Control Panel, bấm **Start** ở dòng Apache và MySQL.
+4. Vào `http://localhost/phpmyadmin`, tab **SQL**, dán toàn bộ nội dung `schema.sql`, bấm **Go** để tạo database `library_db` và các bảng.
+5. Mở `http://localhost/library-php/`.
 
-1. **Đăng nhập bằng tài khoản trường**: hiện đang chọn thành viên qua dropdown
-   để test nhanh. Cần thay bằng màn hình đăng nhập thật.
-2. **Đồng bộ dữ liệu học sinh từ API trường**: hiện `api/members.php` cho thêm
-   thủ công. Cần viết thêm một script PHP chạy định kỳ (cron job trên
-   server thật) gọi API của trường và cập nhật lại bảng `members`.
-3. **Phân quyền**: tách riêng khu vực "Quản lý" cho thủ thư, không cho học
-   sinh truy cập được.
-4. **Giữ chỗ tạm thời khi xác nhận mượn**: nên thêm bước giữ chỗ 15–30 phút
-   trước khi trừ kho hẳn, tránh 2 người cùng đặt 1 cuốn cuối.
-5. **Triển khai thật**: đưa lên hosting hỗ trợ PHP + MySQL (ví dụ Hostinger,
-   000webhost cho bản miễn phí, hoặc VPS riêng).
+Local mặc định dùng MySQL root không mật khẩu (theo cấu hình gốc của XAMPP) — không cần cấu hình thêm gì.
+
+## Triển khai lên Production (Render + SkySQL)
+
+Dự án đang chạy thật tại: **https://library-fu.onrender.com**
+
+`config.php` ưu tiên đọc các biến môi trường sau (đặt trong phần *Environment* của Render):
+
+| Biến | Ý nghĩa |
+|---|---|
+| `DB_HOST` | Địa chỉ máy chủ database |
+| `DB_PORT` | Cổng kết nối |
+| `DB_NAME` | Tên database |
+| `DB_USER` | Tên đăng nhập database |
+| `DB_PASS` | Mật khẩu database |
+
+Nếu không có biến môi trường nào, hệ thống tự dùng cấu hình local (XAMPP).
+
+Mỗi khi push code mới lên nhánh `main` trên GitHub, Render tự động build lại (dựa vào `Dockerfile`) và deploy — không cần thao tác thủ công.
+
+## Tài khoản quản lý mặc định
+
+Thông tin tài khoản quản lý (thủ thư) được lưu trong bảng `admins` của database, không công khai trong mã nguồn vì lý do bảo mật (repo này ở chế độ Public). Liên hệ trực tiếp thành viên phụ trách backend để lấy thông tin đăng nhập.
 
 ## Danh sách API
 
-| Method | Endpoint                          | Mô tả                              |
-|--------|------------------------------------|-------------------------------------|
-| GET    | api/books.php?search=&subject=      | Tìm sách                           |
-| POST   | api/books.php                        | Thêm sách mới                      |
-| GET    | api/members.php                       | Danh sách thành viên              |
-| POST   | api/members.php                        | Thêm thành viên                   |
-| POST   | api/checkout.php                        | Mượn sách `{book_id, member_id}`  |
-| POST   | api/checkin.php                          | Trả sách `{loan_id}`              |
-| GET    | api/loans.php?status=                     | Danh sách phiếu mượn             |
+| Method | Endpoint | Mô tả | Cần đăng nhập |
+|---|---|---|---|
+| GET | `api/books.php?search=&subject=` | Tìm sách | Không |
+| POST | `api/books.php` | Thêm sách mới | Có |
+| GET | `api/members.php` | Danh sách thành viên | Không |
+| POST | `api/members.php` | Thêm thành viên | Có |
+| POST | `api/checkout.php` | Mượn sách `{book_id, member_id}` | Không |
+| POST | `api/checkin.php` | Trả sách `{loan_id}` | Không |
+| GET | `api/loans.php?status=` | Danh sách phiếu mượn | Không |
+| POST | `api/login.php` | Đăng nhập `{username, password}` | — |
+| POST | `api/logout.php` | Đăng xuất | — |
+| GET | `api/session_check.php` | Kiểm tra trạng thái đăng nhập | — |
+

@@ -21,18 +21,22 @@ không kèm dữ liệu mẫu, bạn tự nhập sách và thành viên qua giao
 
 ```
 library-php/
-├── config.php        # Thông tin kết nối MySQL (user root, không mật khẩu — mặc định XAMPP)
-├── schema.sql         # Câu lệnh tạo database + bảng, không có dữ liệu mẫu
+├── config.php # Kết nối database (đọc từ biến môi trường hoặc mặc định local)
+├── schema.sql # Script tạo database và toàn bộ bảng
+├── Dockerfile # Cấu hình build container để deploy
+├── ca-cert.pem # Chứng chỉ SSL để kết nối SkySQL
 ├── api/
-│   ├── books.php       # GET: tìm sách theo mã môn/tên/tác giả · POST: thêm sách
-│   ├── members.php      # GET: danh sách thành viên · POST: thêm thành viên
-│   ├── checkout.php      # POST: mượn sách
-│   ├── checkin.php        # POST: trả sách (tự tính phạt nếu trễ)
-│   └── loans.php           # GET: danh sách phiếu mượn (tự đánh dấu quá hạn)
+│ ├── books.php # GET: tìm sách · POST: thêm sách (yêu cầu đăng nhập)
+│ ├── members.php # GET: danh sách thành viên · POST: thêm thành viên (yêu cầu đăng nhập)
+│ ├── checkout.php # POST: mượn sách
+│ ├── checkin.php # POST: trả sách (tự tính phạt nếu trễ)
+│ ├── loans.php # GET: danh sách phiếu mượn (tự đánh dấu quá hạn)
+│ ├── login.php # POST: đăng nhập quản lý (thủ thư)
+│ ├── logout.php # POST: đăng xuất
+│ └── session_check.php # GET: kiểm tra trạng thái đăng nhập
 ├── index.html
 ├── style.css
 └── app.js
-```
 
 ## Vì sao chưa có dữ liệu mẫu
 

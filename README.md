@@ -26,8 +26,6 @@
 
 ## Cấu trúc dự án
 
-## Cấu trúc dự án
-
 ```
 library-php/
 ├── config.php # Kết nối database (đọc từ biến môi trường hoặc mặc định local)

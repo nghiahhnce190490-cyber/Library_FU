@@ -6,7 +6,7 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.classList.add("active");
     document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
     if (btn.dataset.tab === "return") loadLoans("loanList", "borrowed,overdue");
-    if (btn.dataset.tab === "admin") loadLoans("allLoanList", "");
+    if (btn.dataset.tab === "admin") checkAdminSession();
   });
 });
 
@@ -15,6 +15,49 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add("show");
   setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+// ---------- Admin: session check / login / logout ----------
+async function checkAdminSession() {
+  const res = await fetch("api/session_check.php");
+  const data = await res.json();
+  if (data.loggedIn) {
+    document.getElementById("adminLogin").style.display = "none";
+    document.getElementById("adminPanel").style.display = "block";
+    document.getElementById("adminUsername").textContent = data.username;
+    loadLoans("allLoanList", "");
+  } else {
+    document.getElementById("adminLogin").style.display = "block";
+    document.getElementById("adminPanel").style.display = "none";
+  }
+}
+
+document.getElementById("adminLoginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const payload = {
+    username: form.username.value,
+    password: form.password.value,
+  };
+  const res = await fetch("api/login.php", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  const errorEl = document.getElementById("loginError");
+  if (!res.ok) {
+    errorEl.textContent = data.error;
+    return;
+  }
+  errorEl.textContent = "";
+  form.reset();
+  checkAdminSession();
+});
+
+async function adminLogout() {
+  await fetch("api/logout.php", { method: "POST" });
+  checkAdminSession();
 }
 
 // ---------- Members dropdown ----------

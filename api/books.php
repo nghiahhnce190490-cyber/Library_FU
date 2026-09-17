@@ -29,6 +29,12 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    if (!isset($_SESSION['admin_id'])) {
+        http_response_code(401);
+        echo json_encode(["error" => "Bạn cần đăng nhập với quyền thủ thư để thực hiện thao tác này"]);
+        exit;
+    }
+
     $data = json_decode(file_get_contents('php://input'), true);
     $title = trim($data['title'] ?? '');
     $author = trim($data['author'] ?? '');

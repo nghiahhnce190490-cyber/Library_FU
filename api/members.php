@@ -11,6 +11,12 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    if (!isset($_SESSION['admin_id'])) {
+        http_response_code(401);
+        echo json_encode(["error" => "Bạn cần đăng nhập với quyền thủ thư để thực hiện thao tác này"]);
+        exit;
+    }
+
     // Trong thực tế, dữ liệu thành viên nên được đồng bộ tự động từ API của trường.
     // Endpoint này dùng để thêm thủ công trong lúc chưa có kết nối đó.
     $data = json_decode(file_get_contents('php://input'), true);

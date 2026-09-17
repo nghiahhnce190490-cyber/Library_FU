@@ -3,7 +3,9 @@
 // Local (XAMPP): nếu không có biến môi trường, sẽ dùng giá trị mặc định bên dưới.
 // Trên Render: đặt các biến môi trường DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
 // trong phần Environment của Web Service, giá trị đó sẽ được ưu tiên dùng.
-
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 $host = getenv('DB_HOST') ?: 'localhost';
 $port = getenv('DB_PORT') ?: '3306';
 $dbname = getenv('DB_NAME') ?: 'library_db';

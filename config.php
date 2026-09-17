@@ -10,7 +10,7 @@ $host = getenv('DB_HOST') ?: 'localhost';
 $port = getenv('DB_PORT') ?: '3306';
 $dbname = getenv('DB_NAME') ?: 'library_db';
 $user = getenv('DB_USER') ?: 'root';
-$pass = getenv('DB_PASS') ?: 'exe101_group6';
+$pass = getenv('DB_PASS') ?: 'aaa';
 
 // Đường dẫn tới file chứng chỉ SSL (cần khi kết nối SkySQL/MariaDB Cloud).
 // Trên XAMPP local sẽ không có file này -> tự động bỏ qua SSL.

@@ -73,5 +73,119 @@ if ($method === 'POST') {
     exit;
 }
 
+// ---------- SỬA SÁCH (thủ thư) ----------
+// PUT {id, title, author, subject_code, book_link, shelf_location, total_qty}
+if ($method === 'PUT') {
+    if (!isset($_SESSION['admin_id'])) {
+        http_response_code(401);
+        echo json_encode(["error" => "Chỉ thủ thư mới được sửa sách"]);
+        exit;
+    }
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    $id = intval($data['id'] ?? 0);
+    $title = trim($data['title'] ?? '');
+    $total_qty = intval($data['total_qty'] ?? 0);
+
+    if ($id < 1 || $title === '' || $total_qty < 1) {
+        http_response_code(400);
+        echo json_encode(["error" => "Thiếu tên sách hoặc số lượng không hợp lệ"]);
+        exit;
+    }
+
+    try {
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare("SELECT total_qty, available_qty FROM books WHERE id = ? FOR UPDATE");
+        $stmt->execute([$id]);
+        $book = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$book) {
+            $pdo->rollBack();
+            http_response_code(404);
+            echo json_encode(["error" => "Không tìm thấy sách"]);
+            exit;
+        }
+
+        // Số cuốn đang được mượn không đổi -> số còn lại = tổng mới - đang mượn
+        $borrowed = (int) $book['total_qty'] - (int) $book['available_qty'];
+        if ($total_qty < $borrowed) {
+            $pdo->rollBack();
+            http_response_code(400);
+            echo json_encode(["error" => "Không thể giảm số lượng xuống dưới $borrowed (số cuốn đang được mượn)"]);
+            exit;
+        }
+
+        $pdo->prepare(
+            "UPDATE books SET title = ?, author = ?, subject_code = ?, book_link = ?, shelf_location = ?,
+                              total_qty = ?, available_qty = ?
+             WHERE id = ?"
+        )->execute([
+            $title,
+            trim($data['author'] ?? ''),
+            trim($data['subject_code'] ?? ''),
+            trim($data['book_link'] ?? ''),
+            trim($data['shelf_location'] ?? ''),
+            $total_qty,
+            $total_qty - $borrowed,
+            $id,
+        ]);
+        $pdo->commit();
+    } catch (PDOException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(["error" => "Có lỗi khi sửa sách, vui lòng thử lại"]);
+        exit;
+    }
+
+    echo json_encode(["success" => true, "message" => "Đã cập nhật sách"]);
+    exit;
+}
+
+// ---------- XÓA SÁCH (thủ thư) ----------
+// DELETE api/books.php?id=...
+// Không cho xóa khi còn người đang mượn. Lịch sử mượn đã trả của cuốn này cũng bị xóa theo.
+if ($method === 'DELETE') {
+    if (!isset($_SESSION['admin_id'])) {
+        http_response_code(401);
+        echo json_encode(["error" => "Chỉ thủ thư mới được xóa sách"]);
+        exit;
+    }
+
+    $id = intval($_GET['id'] ?? 0);
+
+    try {
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare("SELECT id FROM books WHERE id = ? FOR UPDATE");
+        $stmt->execute([$id]);
+        if (!$stmt->fetch()) {
+            $pdo->rollBack();
+            http_response_code(404);
+            echo json_encode(["error" => "Không tìm thấy sách"]);
+            exit;
+        }
+
+        $active = $pdo->prepare("SELECT COUNT(*) FROM loans WHERE book_id = ? AND status <> 'returned'");
+        $active->execute([$id]);
+        $count = (int) $active->fetchColumn();
+        if ($count > 0) {
+            $pdo->rollBack();
+            http_response_code(400);
+            echo json_encode(["error" => "Sách đang có $count người mượn, cần trả hết trước khi xóa"]);
+            exit;
+        }
+
+        $pdo->prepare("DELETE FROM loans WHERE book_id = ?")->execute([$id]);
+        $pdo->prepare("DELETE FROM books WHERE id = ?")->execute([$id]);
+        $pdo->commit();
+    } catch (PDOException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(["error" => "Có lỗi khi xóa sách, vui lòng thử lại"]);
+        exit;
+    }
+
+    echo json_encode(["success" => true, "message" => "Đã xóa sách"]);
+    exit;
+}
+
 http_response_code(405);
 echo json_encode(["error" => "Method không được hỗ trợ"]);

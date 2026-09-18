@@ -3,99 +3,225 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Quản lý thư viện</title>
+<title>Thư viện số — Mượn trả sách</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="style.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f26f21' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5a2.5 2.5 0 0 0 0 5H19'/%3E%3C/svg%3E" />
 </head>
 <body>
-  <header>
-    <h1>Thư viện — Checkin/Checkout</h1>
 
-    <!-- Thanh điều hướng: chỉ hiện sau khi đăng nhập -->
-    <div id="navBar" style="display:none; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-      <nav>
-        <button class="tab-btn active" data-tab="search" data-role="admin student">Tìm & mượn sách</button>
-        <button class="tab-btn" data-tab="return" data-role="student">Sách của tôi</button>
-        <button class="tab-btn" data-tab="admin" data-role="admin">Quản lý (thủ thư)</button>
-      </nav>
-      <div>
-        <span>Xin chào, <strong id="userName"></strong></span>
-        <button class="tab-btn" onclick="logout()">Đăng xuất</button>
+  <!-- ===================== MÀN HÌNH ĐĂNG NHẬP ===================== -->
+  <div id="loginScreen" class="login" style="display:none;">
+    <div class="login-art">
+      <div class="brand brand-light">
+        <span class="brand-mark">
+          <svg viewBox="0 0 24 24"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5a2.5 2.5 0 0 0 0 5H19"/></svg>
+        </span>
+        <span>Thư viện số</span>
+      </div>
+
+      <div class="login-hero">
+        <h1>Mượn sách nhanh hơn,<br />trả sách đúng hạn hơn.</h1>
+        <p>Tìm sách theo mã môn, xem ngay vị trí kệ và theo dõi hạn trả, tất cả ở một nơi.</p>
+        <ul class="login-points">
+          <li><span>🔎</span> Tìm theo tên sách, tác giả, mã môn</li>
+          <li><span>📍</span> Biết chính xác sách nằm ở kệ nào</li>
+          <li><span>⏰</span> Nhắc hạn trả, tự tính phí trễ hạn</li>
+        </ul>
+      </div>
+
+      <!-- Hình minh họa kệ sách -->
+      <div class="shelf" aria-hidden="true">
+        <i style="--h:18;--w:34px;--t:150px"></i><i style="--h:210;--w:26px;--t:120px"></i>
+        <i style="--h:160;--w:38px;--t:165px"></i><i style="--h:35;--w:24px;--t:135px"></i>
+        <i class="tilt" style="--h:280;--w:30px;--t:150px"></i><i style="--h:195;--w:36px;--t:170px"></i>
+        <i style="--h:10;--w:28px;--t:128px"></i><i style="--h:140;--w:32px;--t:158px"></i>
+        <i style="--h:230;--w:22px;--t:118px"></i><i style="--h:45;--w:34px;--t:162px"></i>
       </div>
     </div>
-  </header>
 
-  <!-- MÀN HÌNH ĐĂNG NHẬP: chỉ hiện khi CHƯA đăng nhập -->
-  <main id="loginScreen" style="display:none;">
-    <section class="tab-panel active">
-      <h2>Đăng nhập</h2>
-      <form id="loginForm" class="form-grid">
-        <input name="username" placeholder="Mã học sinh / Tên đăng nhập" required />
-        <input name="password" type="password" placeholder="Mật khẩu" required />
-        <button type="submit">Đăng nhập</button>
-      </form>
-      <p id="loginError" style="color:#c0392b;"></p>
-    </section>
-  </main>
+    <div class="login-panel">
+      <div class="login-card">
+        <h2>Đăng nhập</h2>
+        <p class="muted">Học sinh dùng <strong>mã học sinh</strong>, thủ thư dùng tài khoản quản lý.</p>
 
-  <!-- ỨNG DỤNG: chỉ hiện SAU KHI đăng nhập -->
-  <main id="appScreen" style="display:none;">
-    <!-- TAB: TÌM & MƯỢN SÁCH -->
-    <section id="tab-search" class="tab-panel active">
-      <!-- Chỉ thủ thư thấy: nhập mã học sinh để mượn hộ -->
-      <div id="adminBorrowBox" class="filters" style="display:none;">
-        <input type="text" id="borrowStudentCode" placeholder="Mã học sinh mượn sách (thủ thư mượn hộ)" />
+        <form id="loginForm" class="stack">
+          <label class="field">
+            <span>Mã học sinh / Tên đăng nhập</span>
+            <input name="username" autocomplete="username" placeholder="VD: CE190490" required />
+          </label>
+          <label class="field">
+            <span>Mật khẩu</span>
+            <div class="pw">
+              <input name="password" type="password" autocomplete="current-password" placeholder="••••••••" required />
+              <button type="button" class="pw-toggle" onclick="togglePassword(this)" aria-label="Hiện mật khẩu">Hiện</button>
+            </div>
+          </label>
+          <p id="loginError" class="form-error" role="alert"></p>
+          <button type="submit" class="btn btn-primary btn-lg" id="loginBtn">Đăng nhập</button>
+        </form>
+
+        <p class="muted small center">Quên mật khẩu? Liên hệ thủ thư tại quầy để được cấp lại.</p>
       </div>
-      <div class="filters">
-        <input type="text" id="searchInput" placeholder="Tìm theo tên sách hoặc tác giả..." />
-        <input type="text" id="subjectInput" placeholder="Mã môn (vd: TOAN101)" />
-        <button onclick="loadBooks()">Tìm kiếm</button>
+    </div>
+  </div>
+
+  <!-- ===================== ỨNG DỤNG (sau khi đăng nhập) ===================== -->
+  <div id="appScreen" style="display:none;">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-mark">
+            <svg viewBox="0 0 24 24"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5a2.5 2.5 0 0 0 0 5H19"/></svg>
+          </span>
+          <span>Thư viện số</span>
+        </div>
+
+        <nav id="mainNav">
+          <button class="tab-btn active" data-tab="search" data-role="admin student">Tìm & mượn sách</button>
+          <button class="tab-btn" data-tab="return" data-role="student">Sách của tôi</button>
+          <button class="tab-btn" data-tab="admin" data-role="admin">Quản lý</button>
+        </nav>
+
+        <div class="user">
+          <span class="avatar" id="userAvatar">?</span>
+          <div class="user-text">
+            <strong id="userName"></strong>
+            <small id="userRole"></small>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="logout()" title="Đăng xuất">
+            <svg viewBox="0 0 24 24" class="ic"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+            <span class="hide-sm">Đăng xuất</span>
+          </button>
+        </div>
       </div>
-      <div id="bookList" class="card-list"></div>
-    </section>
+    </header>
 
-    <!-- TAB: SÁCH CỦA TÔI (học sinh) -->
-    <section id="tab-return" class="tab-panel">
-      <h2>Sách tôi đang mượn</h2>
-      <p class="meta">Muốn trả sách, hãy mang sách đến quầy thủ thư để được xác nhận.</p>
-      <div id="loanList" class="card-list"></div>
-    </section>
+    <main class="container">
 
-    <!-- TAB: QUẢN LÝ (chỉ thủ thư) -->
-    <section id="tab-admin" class="tab-panel">
-      <h2>Thêm sách mới</h2>
-      <form id="addBookForm" class="form-grid">
-        <input name="title" placeholder="Tên sách" required />
-        <input name="author" placeholder="Tác giả" />
-        <input name="subject_code" placeholder="Mã môn" />
-        <input name="book_link" placeholder="Link sách (URL)" />
-        <input name="shelf_location" placeholder="Vị trí kệ (vd: Kệ A1 - Tầng 1)" />
-        <input name="total_qty" type="number" min="1" value="1" placeholder="Số lượng" required />
-        <button type="submit">Thêm sách</button>
-      </form>
+      <!-- ---------- TAB: TÌM & MƯỢN SÁCH ---------- -->
+      <section id="tab-search" class="tab-panel active">
+        <div class="page-head">
+          <div>
+            <h2>Tìm & mượn sách</h2>
+            <p class="muted">Tìm theo tên sách, tác giả hoặc mã môn học.</p>
+          </div>
+        </div>
 
-      <h2>Thêm thành viên (tạm thời, chờ đồng bộ API trường)</h2>
-      <form id="addMemberForm" class="form-grid">
-        <input name="student_code" placeholder="Mã học sinh" required />
-        <input name="name" placeholder="Họ tên" required />
-        <input name="class_name" placeholder="Lớp/Khoa" />
-        <input name="contact" placeholder="Liên hệ (email/SĐT)" />
-        <input name="password" type="password" minlength="6" placeholder="Mật khẩu ban đầu (≥ 6 ký tự)" required />
-        <button type="submit">Thêm thành viên</button>
-      </form>
+        <!-- Chỉ thủ thư thấy -->
+        <div id="adminBorrowBox" class="notice" style="display:none;">
+          <div class="notice-icon">👤</div>
+          <div class="notice-body">
+            <strong>Chế độ mượn hộ</strong>
+            <span class="muted small">Nhập mã học sinh rồi bấm “Mượn” ở cuốn sách cần mượn.</span>
+          </div>
+          <input type="text" id="borrowStudentCode" placeholder="Mã học sinh, VD: CE190490" />
+        </div>
 
-      <h2>Đặt lại mật khẩu học sinh</h2>
-      <form id="resetPasswordForm" class="form-grid">
-        <input name="student_code" placeholder="Mã học sinh" required />
-        <input name="password" type="password" minlength="6" placeholder="Mật khẩu mới (≥ 6 ký tự)" required />
-        <button type="submit">Đặt lại mật khẩu</button>
-      </form>
+        <form id="searchForm" class="searchbar">
+          <div class="search-field grow">
+            <svg viewBox="0 0 24 24" class="ic"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="text" id="searchInput" placeholder="Tên sách hoặc tác giả..." />
+          </div>
+          <div class="search-field">
+            <svg viewBox="0 0 24 24" class="ic"><path d="M4 7h16M4 12h10M4 17h6"/></svg>
+            <input type="text" id="subjectInput" placeholder="Mã môn (VD: MAE101)" />
+          </div>
+          <button type="submit" class="btn btn-primary">Tìm kiếm</button>
+        </form>
 
-      <h2>Toàn bộ phiếu mượn</h2>
-      <div id="allLoanList" class="card-list"></div>
-    </section>
-  </main>
+        <p class="result-count muted" id="bookCount"></p>
+        <div id="bookList" class="book-grid"></div>
+      </section>
 
-  <div id="toast"></div>
+      <!-- ---------- TAB: SÁCH CỦA TÔI ---------- -->
+      <section id="tab-return" class="tab-panel">
+        <div class="page-head">
+          <div>
+            <h2>Sách của tôi</h2>
+            <p class="muted">Muốn trả sách, hãy mang sách đến quầy thủ thư để được xác nhận.</p>
+          </div>
+        </div>
+        <div id="mySummary" class="stats stats-3"></div>
+        <div id="loanList" class="loan-list"></div>
+      </section>
+
+      <!-- ---------- TAB: QUẢN LÝ (thủ thư) ---------- -->
+      <section id="tab-admin" class="tab-panel">
+        <div class="page-head">
+          <div>
+            <h2>Quản lý thư viện</h2>
+            <p class="muted">Thêm sách, quản lý học sinh và xác nhận trả sách.</p>
+          </div>
+        </div>
+
+        <div id="adminStats" class="stats"></div>
+
+        <div class="admin-grid">
+          <div class="panel">
+            <div class="panel-head"><span class="panel-icon">📚</span><h3>Thêm sách mới</h3></div>
+            <form id="addBookForm" class="form-grid">
+              <label class="field span-2"><span>Tên sách *</span><input name="title" required /></label>
+              <label class="field"><span>Tác giả</span><input name="author" /></label>
+              <label class="field"><span>Mã môn</span><input name="subject_code" placeholder="VD: MAE101" /></label>
+              <label class="field"><span>Vị trí kệ</span><input name="shelf_location" placeholder="VD: Kệ A1 - Tầng 1" /></label>
+              <label class="field"><span>Số lượng *</span><input name="total_qty" type="number" min="1" value="1" required /></label>
+              <label class="field span-2"><span>Link tài liệu điện tử</span><input name="book_link" type="url" placeholder="https://..." /></label>
+              <button type="submit" class="btn btn-primary span-2">Thêm sách</button>
+            </form>
+          </div>
+
+          <div class="panel-col">
+            <div class="panel">
+              <div class="panel-head"><span class="panel-icon">🎓</span><h3>Thêm học sinh</h3></div>
+              <form id="addMemberForm" class="form-grid">
+                <label class="field"><span>Mã học sinh *</span><input name="student_code" required /></label>
+                <label class="field"><span>Họ tên *</span><input name="name" required /></label>
+                <label class="field"><span>Lớp / Khoa</span><input name="class_name" /></label>
+                <label class="field"><span>Liên hệ</span><input name="contact" placeholder="Email / SĐT" /></label>
+                <label class="field span-2"><span>Mật khẩu ban đầu * (≥ 6 ký tự)</span><input name="password" type="password" minlength="6" required /></label>
+                <button type="submit" class="btn btn-primary span-2">Thêm học sinh</button>
+              </form>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><span class="panel-icon">🔑</span><h3>Đặt lại mật khẩu học sinh</h3></div>
+              <form id="resetPasswordForm" class="form-grid">
+                <label class="field"><span>Mã học sinh</span><input name="student_code" required /></label>
+                <label class="field"><span>Mật khẩu mới</span><input name="password" type="password" minlength="6" required /></label>
+                <button type="submit" class="btn btn-outline span-2">Đặt lại mật khẩu</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head panel-head-wrap">
+            <div class="panel-head-title"><span class="panel-icon">🧾</span><h3>Phiếu mượn</h3></div>
+            <div class="toolbar">
+              <div class="chips" id="loanFilter">
+                <button class="chip active" data-filter="">Tất cả</button>
+                <button class="chip" data-filter="borrowed">Đang mượn</button>
+                <button class="chip" data-filter="overdue">Quá hạn</button>
+                <button class="chip" data-filter="returned">Đã trả</button>
+              </div>
+              <div class="search-field search-sm">
+                <svg viewBox="0 0 24 24" class="ic"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input type="text" id="loanSearch" placeholder="Tìm tên / mã HS / sách..." />
+              </div>
+            </div>
+          </div>
+          <div id="allLoanList" class="loan-list"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer muted small">© Thư viện số · thuvienfpt.id.vn</footer>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="app.js"></script>
 </body>

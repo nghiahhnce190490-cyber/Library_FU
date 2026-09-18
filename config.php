@@ -17,8 +17,9 @@ $user = getenv('DB_USER') ?: 'root';
 $pass = getenv('DB_PASS') ?: '';
 
 // Đường dẫn tới file chứng chỉ SSL (cần khi kết nối SkySQL/MariaDB Cloud).
-// Trên XAMPP local sẽ không có file này -> tự động bỏ qua SSL.
+// Chỉ bật SSL khi kết nối CSDL từ xa; chạy XAMPP ở máy (localhost) thì tự bỏ qua.
 $caCertPath = __DIR__ . '/ca-cert.pem';
+$isLocal = in_array($host, ['localhost', '127.0.0.1'], true);
 
 try {
     $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
@@ -26,7 +27,7 @@ try {
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     ];
 
-    if (file_exists($caCertPath)) {
+    if (!$isLocal && file_exists($caCertPath)) {
         $options[PDO::MYSQL_ATTR_SSL_CA] = $caCertPath;
         $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = true;
     }

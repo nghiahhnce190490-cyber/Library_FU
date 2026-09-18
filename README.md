@@ -1,95 +1,67 @@
-# Hệ thống Quản lý Thư viện — Checkin/Checkout
+# Ứng dụng quản lý thư viện — Bản PHP (XAMPP + MySQL)
 
-Ứng dụng web quản lý mượn/trả sách cho thư viện trường học, xây dựng bằng **PHP thuần + MySQL/MariaDB**, giao diện HTML/CSS/JavaScript thuần (không dùng framework).
+Bản này viết lại bằng PHP thuần + MySQL, dùng chung được với XAMPP —
+không kèm dữ liệu mẫu, bạn tự nhập sách và thành viên qua giao diện.
 
-**Demo trực tuyến:** https://library-fu.onrender.com
+## Yêu cầu
+- Đã cài XAMPP (gồm Apache + MySQL + phpMyAdmin): tải tại https://www.apachefriends.org
 
-## Tính năng chính
+## Cách chạy
 
-- Tìm kiếm sách theo tên, tác giả, mã môn học
-- Mượn sách theo tài khoản học sinh (mã số học sinh)
-- Trả sách, tự động tính phạt nếu trễ hạn
-- Tự động đánh dấu phiếu mượn quá hạn
-- Khu vực Quản lý (thủ thư) có đăng nhập riêng:
-- Thêm sách mới, thêm thành viên
-- Xem toàn bộ lịch sử mượn/trả
-
-## Công nghệ sử dụng
-
-| Thành phần | Công nghệ |
-|---|---|
-| Backend | PHP 8.2 (PDO, không dùng framework) |
-| Database | MySQL / MariaDB |
-| Frontend | HTML5, CSS3, JavaScript thuần (Fetch API) |
-| Triển khai | Docker, Render (Web Service) |
-| Database hosting | SkySQL (MariaDB Cloud, miễn phí) |
+1. Copy toàn bộ thư mục `library-php` vào trong `C:\xampp\htdocs\`,
+   có thể đổi tên thư mục thành `library-app` cho gọn.
+2. Mở XAMPP Control Panel, bấm **Start** ở dòng Apache và dòng MySQL.
+3. Mở trình duyệt vào `http://localhost/phpmyadmin`.
+4. Vào tab **SQL**, dán toàn bộ nội dung file `schema.sql` vào rồi bấm **Go**
+   để tạo database `library_db` và các bảng cần thiết (chưa có dữ liệu mẫu).
+5. Mở trình duyệt vào `http://localhost/library-app/` (đổi tên cho đúng
+   thư mục bạn đã đặt ở bước 1).
 
 ## Cấu trúc dự án
 
 ```
 library-php/
-├── config.php # Kết nối database (đọc từ biến môi trường hoặc mặc định local)
-├── schema.sql # Script tạo database và toàn bộ bảng
-├── Dockerfile # Cấu hình build container để deploy
-├── ca-cert.pem # Chứng chỉ SSL để kết nối SkySQL
+├── config.php        # Thông tin kết nối MySQL (user root, không mật khẩu — mặc định XAMPP)
+├── schema.sql         # Câu lệnh tạo database + bảng, không có dữ liệu mẫu
 ├── api/
-│ ├── books.php # GET: tìm sách · POST: thêm sách (yêu cầu đăng nhập)
-│ ├── members.php # GET: danh sách thành viên · POST: thêm thành viên (yêu cầu đăng nhập)
-│ ├── checkout.php # POST: mượn sách
-│ ├── checkin.php # POST: trả sách (tự tính phạt nếu trễ)
-│ ├── loans.php # GET: danh sách phiếu mượn (tự đánh dấu quá hạn)
-│ ├── login.php # POST: đăng nhập quản lý (thủ thư)
-│ ├── logout.php # POST: đăng xuất
-│ └── session_check.php # GET: kiểm tra trạng thái đăng nhập
+│   ├── books.php       # GET: tìm sách theo mã môn/tên/tác giả · POST: thêm sách
+│   ├── members.php      # GET: danh sách thành viên · POST: thêm thành viên
+│   ├── checkout.php      # POST: mượn sách
+│   ├── checkin.php        # POST: trả sách (tự tính phạt nếu trễ)
+│   └── loans.php           # GET: danh sách phiếu mượn (tự đánh dấu quá hạn)
 ├── index.html
 ├── style.css
 └── app.js
+```
 
+## Vì sao chưa có dữ liệu mẫu
 
-## Chạy trên máy local (XAMPP)
+Theo yêu cầu, bản này để trống — bạn cần tự thêm sách và thành viên qua
+giao diện web (tab "Quản lý") trước khi thử mượn/trả, hoặc nhập trực tiếp
+qua phpMyAdmin nếu muốn thêm nhanh nhiều dòng cùng lúc.
 
-1. Đã cài [XAMPP](https://www.apachefriends.org) (gồm Apache + MySQL + phpMyAdmin).
-2. Copy toàn bộ thư mục `library-php` vào `C:\xampp\htdocs\`.
-3. Mở XAMPP Control Panel, bấm **Start** ở dòng Apache và MySQL.
-4. Vào `http://localhost/phpmyadmin`, tab **SQL**, dán toàn bộ nội dung `schema.sql`, bấm **Go** để tạo database `library_db` và các bảng.
-5. Mở `http://localhost/library-php/`.
+## Những phần cần làm thêm để dùng thật
 
-Local mặc định dùng MySQL root không mật khẩu (theo cấu hình gốc của XAMPP) — không cần cấu hình thêm gì.
-
-## Triển khai lên Production (Render + SkySQL)
-
-Dự án đang chạy thật tại: **https://library-fu.onrender.com**
-
-`config.php` ưu tiên đọc các biến môi trường sau (đặt trong phần *Environment* của Render):
-
-| Biến | Ý nghĩa |
-|---|---|
-| `DB_HOST` | Địa chỉ máy chủ database |
-| `DB_PORT` | Cổng kết nối |
-| `DB_NAME` | Tên database |
-| `DB_USER` | Tên đăng nhập database |
-| `DB_PASS` | Mật khẩu database |
-
-Nếu không có biến môi trường nào, hệ thống tự dùng cấu hình local (XAMPP).
-
-Mỗi khi push code mới lên nhánh `main` trên GitHub, Render tự động build lại (dựa vào `Dockerfile`) và deploy — không cần thao tác thủ công.
-
-## Tài khoản quản lý mặc định
-
-Thông tin tài khoản quản lý (thủ thư) được lưu trong bảng `admins` của database, không công khai trong mã nguồn vì lý do bảo mật (repo này ở chế độ Public). Liên hệ trực tiếp thành viên phụ trách backend để lấy thông tin đăng nhập.
+1. **Đăng nhập bằng tài khoản trường**: hiện đang chọn thành viên qua dropdown
+   để test nhanh. Cần thay bằng màn hình đăng nhập thật.
+2. **Đồng bộ dữ liệu học sinh từ API trường**: hiện `api/members.php` cho thêm
+   thủ công. Cần viết thêm một script PHP chạy định kỳ (cron job trên
+   server thật) gọi API của trường và cập nhật lại bảng `members`.
+3. **Phân quyền**: tách riêng khu vực "Quản lý" cho thủ thư, không cho học
+   sinh truy cập được.
+4. **Giữ chỗ tạm thời khi xác nhận mượn**: nên thêm bước giữ chỗ 15–30 phút
+   trước khi trừ kho hẳn, tránh 2 người cùng đặt 1 cuốn cuối.
+5. **Triển khai thật**: đưa lên hosting hỗ trợ PHP + MySQL (ví dụ Hostinger,
+   000webhost cho bản miễn phí, hoặc VPS riêng).
 
 ## Danh sách API
 
-| Method | Endpoint | Mô tả | Cần đăng nhập |
-|---|---|---|---|
-| GET | `api/books.php?search=&subject=` | Tìm sách | Không |
-| POST | `api/books.php` | Thêm sách mới | Có |
-| GET | `api/members.php` | Danh sách thành viên | Không |
-| POST | `api/members.php` | Thêm thành viên | Có |
-| POST | `api/checkout.php` | Mượn sách `{book_id, member_id}` | Không |
-| POST | `api/checkin.php` | Trả sách `{loan_id}` | Không |
-| GET | `api/loans.php?status=` | Danh sách phiếu mượn | Không |
-| POST | `api/login.php` | Đăng nhập `{username, password}` | — |
-| POST | `api/logout.php` | Đăng xuất | — |
-| GET | `api/session_check.php` | Kiểm tra trạng thái đăng nhập | — |
-
+| Method | Endpoint                          | Mô tả                              |
+|--------|------------------------------------|-------------------------------------|
+| GET    | api/books.php?search=&subject=      | Tìm sách                           |
+| POST   | api/books.php                        | Thêm sách mới                      |
+| GET    | api/members.php                       | Danh sách thành viên              |
+| POST   | api/members.php                        | Thêm thành viên                   |
+| POST   | api/checkout.php                        | Mượn sách `{book_id, member_id}`  |
+| POST   | api/checkin.php                          | Trả sách `{loan_id}`              |
+| GET    | api/loans.php?status=                     | Danh sách phiếu mượn             |

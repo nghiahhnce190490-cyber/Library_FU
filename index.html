@@ -9,106 +9,89 @@
 <body>
   <header>
     <h1>Thư viện — Checkin/Checkout</h1>
-    <nav>
-      <button class="tab-btn active" data-tab="search">Tìm & mượn sách</button>
-      <button class="tab-btn" data-tab="return">Sách của tôi</button>
-      <button class="tab-btn" data-tab="admin">Quản lý (thủ thư)</button>
-    </nav>
+
+    <!-- Thanh điều hướng: chỉ hiện sau khi đăng nhập -->
+    <div id="navBar" style="display:none; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+      <nav>
+        <button class="tab-btn active" data-tab="search" data-role="admin student">Tìm & mượn sách</button>
+        <button class="tab-btn" data-tab="return" data-role="student">Sách của tôi</button>
+        <button class="tab-btn" data-tab="admin" data-role="admin">Quản lý (thủ thư)</button>
+      </nav>
+      <div>
+        <span>Xin chào, <strong id="userName"></strong></span>
+        <button class="tab-btn" onclick="logout()">Đăng xuất</button>
+      </div>
+    </div>
   </header>
 
-  <main>
+  <!-- MÀN HÌNH ĐĂNG NHẬP: chỉ hiện khi CHƯA đăng nhập -->
+  <main id="loginScreen" style="display:none;">
+    <section class="tab-panel active">
+      <h2>Đăng nhập</h2>
+      <form id="loginForm" class="form-grid">
+        <input name="username" placeholder="Mã học sinh / Tên đăng nhập" required />
+        <input name="password" type="password" placeholder="Mật khẩu" required />
+        <button type="submit">Đăng nhập</button>
+      </form>
+      <p id="loginError" style="color:#c0392b;"></p>
+    </section>
+  </main>
+
+  <!-- ỨNG DỤNG: chỉ hiện SAU KHI đăng nhập -->
+  <main id="appScreen" style="display:none;">
     <!-- TAB: TÌM & MƯỢN SÁCH -->
     <section id="tab-search" class="tab-panel active">
-
-      <!-- Đăng nhập học sinh: hiện khi CHƯA đăng nhập -->
-      <div id="studentLogin" class="member-select">
-        <h2>Đăng nhập học sinh</h2>
-        <form id="studentLoginForm" class="form-grid">
-          <input name="student_code" placeholder="Mã học sinh" required />
-          <input name="password" type="password" placeholder="Mật khẩu" required />
-          <button type="submit">Đăng nhập</button>
-        </form>
-        <p id="studentLoginError" style="color:#c0392b;"></p>
+      <!-- Chỉ thủ thư thấy: nhập mã học sinh để mượn hộ -->
+      <div id="adminBorrowBox" class="filters" style="display:none;">
+        <input type="text" id="borrowStudentCode" placeholder="Mã học sinh mượn sách (thủ thư mượn hộ)" />
       </div>
-
-      <!-- Thông tin học sinh: hiện khi ĐÃ đăng nhập -->
-      <div id="studentInfo" class="member-select" style="display:none;">
-        <span>Xin chào, <strong id="studentName"></strong> (<span id="studentCode"></span>)</span>
-        <button onclick="logout()">Đăng xuất</button>
+      <div class="filters">
+        <input type="text" id="searchInput" placeholder="Tìm theo tên sách hoặc tác giả..." />
+        <input type="text" id="subjectInput" placeholder="Mã môn (vd: TOAN101)" />
+        <button onclick="loadBooks()">Tìm kiếm</button>
       </div>
-
-      <!-- Tìm & mượn sách: chỉ hiện SAU KHI đăng nhập -->
-      <div id="bookArea" style="display:none;">
-        <div class="filters">
-          <input type="text" id="searchInput" placeholder="Tìm theo tên sách hoặc tác giả..." />
-          <input type="text" id="subjectInput" placeholder="Mã môn (vd: TOAN101)" />
-          <button onclick="loadBooks()">Tìm kiếm</button>
-        </div>
-
-        <div id="bookList" class="card-list"></div>
-      </div>
+      <div id="bookList" class="card-list"></div>
     </section>
 
-    <!-- TAB: SÁCH CỦA TÔI -->
+    <!-- TAB: SÁCH CỦA TÔI (học sinh) -->
     <section id="tab-return" class="tab-panel">
       <h2>Sách tôi đang mượn</h2>
       <p class="meta">Muốn trả sách, hãy mang sách đến quầy thủ thư để được xác nhận.</p>
       <div id="loanList" class="card-list"></div>
     </section>
 
-    <!-- TAB: QUẢN LÝ -->
+    <!-- TAB: QUẢN LÝ (chỉ thủ thư) -->
     <section id="tab-admin" class="tab-panel">
+      <h2>Thêm sách mới</h2>
+      <form id="addBookForm" class="form-grid">
+        <input name="title" placeholder="Tên sách" required />
+        <input name="author" placeholder="Tác giả" />
+        <input name="subject_code" placeholder="Mã môn" />
+        <input name="book_link" placeholder="Link sách (URL)" />
+        <input name="shelf_location" placeholder="Vị trí kệ (vd: Kệ A1 - Tầng 1)" />
+        <input name="total_qty" type="number" min="1" value="1" placeholder="Số lượng" required />
+        <button type="submit">Thêm sách</button>
+      </form>
 
-      <!-- Form đăng nhập, chỉ hiện khi CHƯA đăng nhập -->
-      <div id="adminLogin">
-        <h2>Đăng nhập quản lý (thủ thư)</h2>
-        <form id="adminLoginForm" class="form-grid">
-          <input name="username" placeholder="Tên đăng nhập" required />
-          <input name="password" type="password" placeholder="Mật khẩu" required />
-          <button type="submit">Đăng nhập</button>
-        </form>
-        <p id="loginError" style="color:#c0392b;"></p>
-      </div>
+      <h2>Thêm thành viên (tạm thời, chờ đồng bộ API trường)</h2>
+      <form id="addMemberForm" class="form-grid">
+        <input name="student_code" placeholder="Mã học sinh" required />
+        <input name="name" placeholder="Họ tên" required />
+        <input name="class_name" placeholder="Lớp/Khoa" />
+        <input name="contact" placeholder="Liên hệ (email/SĐT)" />
+        <input name="password" type="password" minlength="6" placeholder="Mật khẩu ban đầu (≥ 6 ký tự)" required />
+        <button type="submit">Thêm thành viên</button>
+      </form>
 
-      <!-- Khu vực quản lý thật, chỉ hiện khi ĐÃ đăng nhập -->
-      <div id="adminPanel" style="display:none;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <p>Xin chào, <strong id="adminUsername"></strong></p>
-          <button onclick="logout()">Đăng xuất</button>
-        </div>
+      <h2>Đặt lại mật khẩu học sinh</h2>
+      <form id="resetPasswordForm" class="form-grid">
+        <input name="student_code" placeholder="Mã học sinh" required />
+        <input name="password" type="password" minlength="6" placeholder="Mật khẩu mới (≥ 6 ký tự)" required />
+        <button type="submit">Đặt lại mật khẩu</button>
+      </form>
 
-        <h2>Thêm sách mới</h2>
-        <form id="addBookForm" class="form-grid">
-          <input name="title" placeholder="Tên sách" required />
-          <input name="author" placeholder="Tác giả" />
-          <input name="subject_code" placeholder="Mã môn" />
-          <input name="book_link" placeholder="Link sách (URL)" />
-          <input name="shelf_location" placeholder="Vị trí kệ (vd: Kệ A1 - Tầng 1)" />
-          <input name="total_qty" type="number" min="1" value="1" placeholder="Số lượng" required />
-          <button type="submit">Thêm sách</button>
-        </form>
-
-        <h2>Thêm thành viên (tạm thời, chờ đồng bộ API trường)</h2>
-        <form id="addMemberForm" class="form-grid">
-          <input name="student_code" placeholder="Mã học sinh" required />
-          <input name="name" placeholder="Họ tên" required />
-          <input name="class_name" placeholder="Lớp/Khoa" />
-          <input name="contact" placeholder="Liên hệ (email/SĐT)" />
-          <input name="password" type="password" minlength="6" placeholder="Mật khẩu ban đầu (≥ 6 ký tự)" required />
-          <button type="submit">Thêm thành viên</button>
-        </form>
-
-        <h2>Đặt lại mật khẩu học sinh</h2>
-        <form id="resetPasswordForm" class="form-grid">
-          <input name="student_code" placeholder="Mã học sinh" required />
-          <input name="password" type="password" minlength="6" placeholder="Mật khẩu mới (≥ 6 ký tự)" required />
-          <button type="submit">Đặt lại mật khẩu</button>
-        </form>
-
-        <h2>Toàn bộ phiếu mượn</h2>
-        <div id="allLoanList" class="card-list"></div>
-      </div>
-
+      <h2>Toàn bộ phiếu mượn</h2>
+      <div id="allLoanList" class="card-list"></div>
     </section>
   </main>
 

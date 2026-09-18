@@ -1,4 +1,5 @@
 <?php
+// Trả sách — CHỈ thủ thư được xác nhận (nhận sách tận tay rồi mới bấm)
 require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json; charset=utf-8');
 
@@ -10,36 +11,57 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+if (!isset($_SESSION['admin_id'])) {
+    http_response_code(401);
+    echo json_encode(["error" => "Chỉ thủ thư mới được xác nhận trả sách"]);
+    exit;
+}
+
 $data = json_decode(file_get_contents('php://input'), true);
 $loan_id = intval($data['loan_id'] ?? 0);
 
-$stmt = $pdo->prepare("SELECT * FROM loans WHERE id = ?");
-$stmt->execute([$loan_id]);
-$loan = $stmt->fetch(PDO::FETCH_ASSOC);
+try {
+    $pdo->beginTransaction();
 
-if (!$loan) {
-    http_response_code(404);
-    echo json_encode(["error" => "Không tìm thấy phiếu mượn"]);
+    $stmt = $pdo->prepare("SELECT * FROM loans WHERE id = ? FOR UPDATE");
+    $stmt->execute([$loan_id]);
+    $loan = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$loan) {
+        $pdo->rollBack();
+        http_response_code(404);
+        echo json_encode(["error" => "Không tìm thấy phiếu mượn"]);
+        exit;
+    }
+    if ($loan['status'] === 'returned') {
+        $pdo->rollBack();
+        http_response_code(400);
+        echo json_encode(["error" => "Phiếu này đã được trả trước đó"]);
+        exit;
+    }
+
+    $today = new DateTime('today');
+    $due = new DateTime($loan['due_date']);
+    $fine = 0;
+    if ($today > $due) {
+        $lateDays = $due->diff($today)->days;
+        $fine = $lateDays * FINE_PER_DAY;
+    }
+    $return_date = $today->format('Y-m-d');
+
+    $pdo->prepare("UPDATE loans SET return_date = ?, status = 'returned', fine = ? WHERE id = ?")
+        ->execute([$return_date, $fine, $loan_id]);
+
+    $pdo->prepare("UPDATE books SET available_qty = LEAST(available_qty + 1, total_qty) WHERE id = ?")
+        ->execute([$loan['book_id']]);
+
+    $pdo->commit();
+} catch (PDOException $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    http_response_code(500);
+    echo json_encode(["error" => "Có lỗi khi trả sách, vui lòng thử lại"]);
     exit;
 }
-if ($loan['status'] === 'returned') {
-    http_response_code(400);
-    echo json_encode(["error" => "Phiếu này đã được trả trước đó"]);
-    exit;
-}
-
-$return_date = date('Y-m-d');
-$fine = 0;
-if ($return_date > $loan['due_date']) {
-    $lateDays = (int) round((strtotime($return_date) - strtotime($loan['due_date'])) / 86400);
-    $fine = $lateDays * FINE_PER_DAY;
-}
-
-$pdo->prepare("UPDATE loans SET return_date = ?, status = 'returned', fine = ? WHERE id = ?")
-    ->execute([$return_date, $fine, $loan_id]);
-
-$pdo->prepare("UPDATE books SET available_qty = available_qty + 1 WHERE id = ?")
-    ->execute([$loan['book_id']]);
 
 echo json_encode([
     "success" => true,

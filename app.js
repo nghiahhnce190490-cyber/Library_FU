@@ -53,6 +53,8 @@ async function refreshSession() {
   // Khu học sinh
   document.getElementById("studentLogin").style.display = currentStudent ? "none" : "block";
   document.getElementById("studentInfo").style.display = currentStudent ? "flex" : "none";
+  // Khu tìm & mượn sách chỉ hiện sau khi đăng nhập (học sinh hoặc thủ thư)
+  document.getElementById("bookArea").style.display = currentStudent || isAdmin ? "block" : "none";
   if (currentStudent) {
     document.getElementById("studentName").textContent = currentStudent.name;
     document.getElementById("studentCode").textContent = currentStudent.student_code;

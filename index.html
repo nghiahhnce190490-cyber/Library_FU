@@ -37,13 +37,16 @@
         <button onclick="logout()">Đăng xuất</button>
       </div>
 
-      <div class="filters">
-        <input type="text" id="searchInput" placeholder="Tìm theo tên sách hoặc tác giả..." />
-        <input type="text" id="subjectInput" placeholder="Mã môn (vd: TOAN101)" />
-        <button onclick="loadBooks()">Tìm kiếm</button>
-      </div>
+      <!-- Tìm & mượn sách: chỉ hiện SAU KHI đăng nhập -->
+      <div id="bookArea" style="display:none;">
+        <div class="filters">
+          <input type="text" id="searchInput" placeholder="Tìm theo tên sách hoặc tác giả..." />
+          <input type="text" id="subjectInput" placeholder="Mã môn (vd: TOAN101)" />
+          <button onclick="loadBooks()">Tìm kiếm</button>
+        </div>
 
-      <div id="bookList" class="card-list"></div>
+        <div id="bookList" class="card-list"></div>
+      </div>
     </section>
 
     <!-- TAB: SÁCH CỦA TÔI -->
@@ -96,6 +99,7 @@
         </form>
 
         <h2>Đặt lại mật khẩu học sinh</h2>
+        <form id="resetPasswordForm" class="form-grid">
           <input name="student_code" placeholder="Mã học sinh" required />
           <input name="password" type="password" minlength="6" placeholder="Mật khẩu mới (≥ 6 ký tự)" required />
           <button type="submit">Đặt lại mật khẩu</button>

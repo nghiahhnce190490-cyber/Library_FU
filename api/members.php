@@ -2,7 +2,8 @@
 // Quản lý thành viên — CHỈ thủ thư
 // GET  : danh sách thành viên (không trả về mật khẩu), kèm số sách đang mượn / quá hạn / tiền phạt
 // POST : thêm thành viên mới, kèm mật khẩu ban đầu
-// PUT  : khóa / mở khóa quyền mượn {id, status: "active" | "locked"}
+// PUT  : khóa / mở khóa quyền mượn {id, status} hoặc sửa thông tin {id, student_code, name, class_name, contact}
+// DELETE ?id= : xóa sinh viên (không được khi còn sách chưa trả)
 require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json; charset=utf-8');
 
@@ -29,10 +30,47 @@ if ($method === 'GET') {
     exit;
 }
 
-// PUT {id, status: "active" | "locked"} — khóa / mở khóa quyền mượn sách
+// PUT có 2 kiểu:
+//  - {id, status: "active" | "locked"}                     -> khóa / mở khóa quyền mượn
+//  - {id, student_code, name, class_name, contact}         -> sửa thông tin sinh viên
 if ($method === 'PUT') {
     $data = json_decode(file_get_contents('php://input'), true);
     $id = intval($data['id'] ?? 0);
+
+    // ---- Sửa thông tin ----
+    if (!array_key_exists('status', $data ?? [])) {
+        $student_code = trim($data['student_code'] ?? '');
+        $name = trim($data['name'] ?? '');
+        if ($id < 1 || $student_code === '' || $name === '') {
+            http_response_code(400);
+            echo json_encode(["error" => "Thiếu mã học sinh hoặc họ tên"]);
+            exit;
+        }
+
+        $dup = $pdo->prepare("SELECT COUNT(*) FROM members WHERE student_code = ? AND id <> ?");
+        $dup->execute([$student_code, $id]);
+        if ($dup->fetchColumn() > 0) {
+            http_response_code(400);
+            echo json_encode(["error" => "Mã học sinh $student_code đã được dùng cho sinh viên khác"]);
+            exit;
+        }
+
+        $exists = $pdo->prepare("SELECT COUNT(*) FROM members WHERE id = ?");
+        $exists->execute([$id]);
+        if ($exists->fetchColumn() == 0) {
+            http_response_code(404);
+            echo json_encode(["error" => "Không tìm thấy sinh viên"]);
+            exit;
+        }
+
+        $pdo->prepare("UPDATE members SET student_code = ?, name = ?, class_name = ?, contact = ? WHERE id = ?")
+            ->execute([$student_code, $name, trim($data['class_name'] ?? ''), trim($data['contact'] ?? ''), $id]);
+
+        echo json_encode(["success" => true, "message" => "Đã cập nhật thông tin $name"]);
+        exit;
+    }
+
+    // ---- Khóa / mở khóa ----
     $status = $data['status'] ?? '';
 
     if ($id < 1 || !in_array($status, ['active', 'locked'], true)) {
@@ -92,6 +130,47 @@ if ($method === 'POST') {
         http_response_code(400);
         echo json_encode(["error" => "Mã học sinh đã tồn tại"]);
     }
+    exit;
+}
+
+// DELETE api/members.php?id=... — xóa sinh viên
+// Không cho xóa khi sinh viên còn sách chưa trả. Lịch sử mượn đã trả cũng bị xóa theo.
+if ($method === 'DELETE') {
+    $id = intval($_GET['id'] ?? 0);
+
+    try {
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare("SELECT name FROM members WHERE id = ? FOR UPDATE");
+        $stmt->execute([$id]);
+        $name = $stmt->fetchColumn();
+        if ($name === false) {
+            $pdo->rollBack();
+            http_response_code(404);
+            echo json_encode(["error" => "Không tìm thấy sinh viên"]);
+            exit;
+        }
+
+        $active = $pdo->prepare("SELECT COUNT(*) FROM loans WHERE member_id = ? AND status <> 'returned'");
+        $active->execute([$id]);
+        $count = (int) $active->fetchColumn();
+        if ($count > 0) {
+            $pdo->rollBack();
+            http_response_code(400);
+            echo json_encode(["error" => "$name còn $count cuốn chưa trả, cần trả hết trước khi xóa"]);
+            exit;
+        }
+
+        $pdo->prepare("DELETE FROM loans WHERE member_id = ?")->execute([$id]);
+        $pdo->prepare("DELETE FROM members WHERE id = ?")->execute([$id]);
+        $pdo->commit();
+    } catch (PDOException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(["error" => "Có lỗi khi xóa sinh viên, vui lòng thử lại"]);
+        exit;
+    }
+
+    echo json_encode(["success" => true, "message" => "Đã xóa sinh viên $name"]);
     exit;
 }
 

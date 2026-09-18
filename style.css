@@ -390,3 +390,55 @@ input:focus { border-color: var(--navy-600); box-shadow: 0 0 0 4px rgba(42, 85, 
   .book-grid { grid-template-columns: 1fr; }
   .cover { width: 62px; height: 88px; font-size: 22px; }
 }
+
+/* =========================================================
+   QUẢN LÝ: sửa/xóa sách, danh sách sinh viên, hộp thoại
+   ========================================================= */
+.btn-danger-ghost { background: transparent; color: var(--danger); border-color: #f1c9c5; }
+.btn-danger-ghost:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--danger); }
+.btn-success-ghost { background: transparent; color: var(--ok); border-color: #bfe3d0; }
+.btn-success-ghost:hover:not(:disabled) { background: var(--ok-bg); border-color: var(--ok); }
+.btn-xs { padding: 5px 10px; font-size: 12px; border-radius: 8px; }
+
+.book-admin { display: flex; gap: 6px; margin-top: 2px; }
+.panel-gap { margin-bottom: 16px; }
+.panel-head-title .muted { margin-left: 2px; }
+
+/* Danh sách sinh viên */
+.member-list { display: flex; flex-direction: column; gap: 8px; max-height: 520px; overflow-y: auto; padding-right: 2px; }
+.member {
+  display: grid; grid-template-columns: 40px 1fr auto auto; align-items: center; gap: 14px;
+  padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2);
+}
+.member.locked { background: #f7f5f2; }
+.member.locked .member-name { color: var(--text-2); }
+.member-avatar {
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  color: #fff; font-weight: 700; background: hsl(var(--h) 45% 48%);
+}
+.member.locked .member-avatar { filter: grayscale(1); opacity: .6; }
+.member-name { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.member-meta { font-size: 13px; color: var(--text-2); display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 2px; }
+.member-stats { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.pill { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: #eeece7; color: var(--text-2); white-space: nowrap; }
+.pill.blue { background: var(--info-bg); color: var(--info); }
+.pill.red { background: var(--danger-bg); color: var(--danger); }
+.pill.orange { background: var(--orange-50); color: var(--orange-600); }
+
+/* Hộp thoại */
+.modal {
+  border: 0; padding: 0; border-radius: 18px; width: min(560px, calc(100% - 32px));
+  box-shadow: var(--shadow-lg); color: var(--text); background: var(--surface);
+}
+.modal::backdrop { background: rgba(15, 36, 64, .45); backdrop-filter: blur(2px); }
+.modal-body { padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+.modal-head { display: flex; justify-content: space-between; align-items: center; }
+.modal-head h3 { font-size: 18px; font-weight: 800; }
+.modal-close { border: 0; background: transparent; font-size: 18px; cursor: pointer; color: var(--text-2); padding: 4px 8px; border-radius: 8px; }
+.modal-close:hover { background: var(--surface-2); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+@media (max-width: 860px) {
+  .member { grid-template-columns: 40px 1fr; }
+  .member-stats, .member-actions { grid-column: 2; justify-content: flex-start; }
+}

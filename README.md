@@ -13,7 +13,7 @@ quản lý sách, sinh viên và phiếu mượn.
 |---|---|
 | **Chưa đăng nhập** | Chỉ thấy màn hình đăng nhập |
 | **Sinh viên** | Tìm sách theo tên / tác giả / mã môn · xem vị trí kệ, số lượng còn, link tài liệu điện tử · mượn sách · xem "Sách của tôi" (số ngày còn lại, cảnh báo sắp đến hạn / quá hạn) |
-| **Thủ thư** | Tất cả chức năng tìm sách · **mượn hộ** sinh viên tại quầy · thêm sách · thêm sinh viên · đặt lại mật khẩu sinh viên · xem thống kê · lọc / tìm phiếu mượn · **xác nhận trả sách** |
+| **Thủ thư** | Tất cả chức năng tìm sách · **mượn hộ** sinh viên tại quầy · thêm / **sửa / xóa sách** · thêm sinh viên · **danh sách sinh viên** (đang mượn, quá hạn, tiền phạt) · **khóa / mở khóa quyền mượn** · đặt lại mật khẩu · xem thống kê · lọc / tìm phiếu mượn · **xác nhận trả sách** |
 
 **Quy định nghiệp vụ**
 
@@ -21,6 +21,9 @@ quản lý sách, sinh viên và phiếu mượn.
 - Phí trễ hạn: **5.000đ / ngày** (đổi ở `FINE_PER_DAY` trong `api/checkin.php`)
 - Chỉ thủ thư được xác nhận trả sách (nhận sách tận tay rồi mới bấm)
 - Phiếu quá hạn được tự động đánh dấu khi có người xem danh sách phiếu mượn
+- Sinh viên bị khóa vẫn đăng nhập và xem được, nhưng không mượn thêm được
+- Không xóa được sách khi còn người đang mượn; xóa sách thì lịch sử mượn đã trả của sách đó cũng bị xóa
+- Không giảm được tổng số lượng sách xuống dưới số cuốn đang được mượn
 
 ---
 
@@ -46,7 +49,7 @@ library-php/
 ├── style.css             # Giao diện; màu sắc gom ở đầu file (phần :root)
 ├── app.js                # Logic phía trình duyệt, gọi các API trong api/
 ├── config.php            # Kết nối CSDL (đọc biến môi trường), múi giờ Việt Nam, session
-├── schema.sql            # Tạo database + 4 bảng: books, members, loans, admins
+├── schema.sql            # Tạo database + các bảng: books, members, loans, admins, login_attempts
 ├── Dockerfile            # Đóng gói để chạy trên Render
 ├── .dockerignore         # Loại file nội bộ (.git, README, schema.sql) khỏi bản deploy
 ├── ca-cert.pem           # Chứng chỉ SSL của SkySQL (chỉ cần khi kết nối SkySQL)
@@ -54,14 +57,12 @@ library-php/
     ├── auth_login.php        # Đăng nhập chung (thủ thư hoặc sinh viên)
     ├── session_check.php     # Kiểm tra đang đăng nhập với vai trò gì
     ├── logout.php            # Đăng xuất
-    ├── books.php             # GET: tìm sách · POST: thêm sách
-    ├── members.php           # GET: danh sách sinh viên · POST: thêm sinh viên
+    ├── books.php             # GET: tìm · POST: thêm · PUT: sửa · DELETE: xóa sách
+    ├── members.php           # GET: danh sách · POST: thêm · PUT: khóa / mở khóa sinh viên
     ├── member_password.php   # Thủ thư đặt lại mật khẩu sinh viên
     ├── checkout.php          # Mượn sách (sinh viên tự mượn / thủ thư mượn hộ)
     ├── checkin.php           # Trả sách, tự tính phí trễ hạn
-    ├── loans.php             # Danh sách phiếu mượn
-    ├── login.php             # (cũ) đăng nhập riêng thủ thư — không còn dùng
-    └── student_login.php     # (cũ) đăng nhập riêng sinh viên — không còn dùng
+    └── loans.php             # Danh sách phiếu mượn
 ```
 
 ---
@@ -130,7 +131,10 @@ Tất cả API nhận và trả JSON. Quyền được kiểm tra ở máy chủ
 | POST | `api/logout.php` | Đã đăng nhập | Đăng xuất |
 | GET | `api/books.php?search=&subject=` | Sinh viên, thủ thư | Tìm sách theo tên/tác giả và mã môn |
 | POST | `api/books.php` | Thủ thư | Thêm sách |
-| GET | `api/members.php` | Thủ thư | Danh sách sinh viên (không trả mật khẩu) |
+| PUT | `api/books.php` | Thủ thư | Sửa sách `{id, title, author, subject_code, book_link, shelf_location, total_qty}` |
+| DELETE | `api/books.php?id=` | Thủ thư | Xóa sách (không được khi còn người mượn) |
+| GET | `api/members.php` | Thủ thư | Danh sách sinh viên kèm số đang mượn / quá hạn / tiền phạt (không trả mật khẩu) |
+| PUT | `api/members.php` | Thủ thư | Khóa / mở khóa quyền mượn `{id, status: "active" \| "locked"}` |
 | POST | `api/members.php` | Thủ thư | Thêm sinh viên `{student_code, name, class_name, contact, password}` |
 | POST | `api/member_password.php` | Thủ thư | Đặt lại mật khẩu `{student_code, password}` |
 | POST | `api/checkout.php` | Sinh viên, thủ thư | Mượn sách. Sinh viên: `{book_id}`. Thủ thư mượn hộ: `{book_id, student_code}` |
@@ -142,6 +146,8 @@ Tất cả API nhận và trả JSON. Quyền được kiểm tra ở máy chủ
 ## Bảo mật đã áp dụng
 
 - Mật khẩu sinh viên và thủ thư mã hóa bằng **bcrypt**; đăng nhập bằng session phía máy chủ.
+- Cookie phiên bật **HttpOnly, Secure, SameSite=Lax**.
+- Sai mật khẩu **5 lần trong 15 phút** thì tài khoản đó bị tạm khóa 15 phút (bảng `login_attempts`).
 - **Phân quyền ở máy chủ**, không chỉ ẩn trên giao diện.
 - Truy vấn **tham số hóa** (prepared statement) → chống SQL injection.
 - Dữ liệu hiển thị được **mã hóa ký tự** → chống chèn mã (XSS).
@@ -155,12 +161,20 @@ Tất cả API nhận và trả JSON. Quyền được kiểm tra ở máy chủ
 - Chỉ cần sửa **`index.html`**, **`style.css`**, và `app.js` nếu cần.
 - **Giữ nguyên các `id`** mà `app.js` đang dùng (ví dụ `loginForm`, `bookList`, `loanList`,
   `allLoanList`, `adminBorrowBox`, `borrowStudentCode`, `addBookForm`, `addMemberForm`,
-  `resetPasswordForm`...). Đổi `id` thì chức năng sẽ hỏng.
+  `resetPasswordForm`, `editBookDialog`, `editBookForm`, `memberList`, `memberSearch`...). Đổi `id` thì chức năng sẽ hỏng.
 - Màu sắc, bo góc, đổ bóng gom ở phần `:root` đầu `style.css` — đổi một chỗ là cả trang đổi theo.
 - Luôn **lấy bản mới nhất trên GitHub trước khi sửa**, và upload `index.html`, `style.css`,
   `app.js` **cùng lúc** để tránh lệch phiên bản.
 - Sau khi deploy, bấm **Ctrl+F5** để trình duyệt tải bản mới. Khi sửa CSS/JS, tăng số
-  phiên bản trong `index.html` (`style.css?v=2` → `?v=3`, `app.js?v=2` → `?v=3`).
+  phiên bản trong `index.html` (hiện là `?v=3`; lần sửa sau đổi thành `?v=4`).
+
+---
+
+## Sao lưu database
+
+Dùng file `backup-libgo.bat` (để **ngoài** thư mục dự án, không đưa lên GitHub). Chạy mỗi tuần một lần;
+bản sao lưu lưu tại `Documents\LibGo-backup`. Bản sao lưu chứa dữ liệu cá nhân của sinh viên,
+không chia sẻ công khai.
 
 ---
 
@@ -168,7 +182,6 @@ Tất cả API nhận và trả JSON. Quyền được kiểm tra ở máy chủ
 
 - [ ] Đặt trước sách
 - [ ] Gia hạn theo điều kiện
-- [ ] Sửa / xóa sách trên giao diện quản lý
 - [ ] Trang chi tiết sách riêng
 - [ ] Mã QR cho từng sách
 - [ ] Đăng nhập bằng tài khoản Google của trường (OAuth 2.0)

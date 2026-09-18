@@ -8,6 +8,9 @@ let currentStudent = null; // { id, name, student_code } hoặc null
 let isAdmin = false;
 let allLoans = [];         // cache phiếu mượn cho tab Quản lý
 let loanFilter = "";       // "", "borrowed", "overdue", "returned"
+let allMembers = [];       // cache danh sách sinh viên cho tab Quản lý
+let memberFilter = "";     // "", "active", "locked", "overdue"
+const booksById = {};      // cache sách đang hiển thị (dùng cho nút Sửa)
 
 // ---------- Tiện ích ----------
 // Chống chèn mã HTML (XSS) khi hiển thị dữ liệu người dùng nhập
@@ -29,15 +32,16 @@ function showToast(msg, type = "info") {
   toastTimer = setTimeout(() => (t.className = type), 3200);
 }
 
-async function postJSON(url, payload) {
+async function sendJSON(method, url, payload) {
   const res = await fetch(url, {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: payload === undefined ? undefined : JSON.stringify(payload),
   });
   const data = await res.json().catch(() => ({}));
   return { ok: res.ok, data };
 }
+const postJSON = (url, payload) => sendJSON("POST", url, payload);
 
 async function getJSON(url) {
   const res = await fetch(url);
@@ -195,6 +199,7 @@ async function loadBooks() {
   }
 
   count.textContent = `${books.length} đầu sách${search || subject ? " phù hợp" : ""}`;
+  books.forEach((b) => (booksById[b.id] = b));
   list.innerHTML = books.map(renderBook).join("");
 }
 
@@ -216,6 +221,12 @@ function renderBook(b) {
           ${b.shelf_location ? `<span class="tag">📍 ${esc(b.shelf_location)}</span>` : ""}
           ${b.book_link ? `<a class="tag link" href="${esc(b.book_link)}" target="_blank" rel="noopener">Bản điện tử ↗</a>` : ""}
         </div>
+        ${isAdmin
+          ? `<div class="book-admin">
+               <button class="btn btn-outline btn-xs" onclick="openEditBook(${Number(b.id)})">✏️ Sửa</button>
+               <button class="btn btn-danger-ghost btn-xs" onclick="deleteBook(${Number(b.id)}, this)">🗑 Xóa</button>
+             </div>`
+          : ""}
         <div class="book-foot">
           <div class="stock">
             <div class="stock-bar ${barCls}"><span style="width:${pct}%"></span></div>
@@ -336,7 +347,156 @@ async function loadAdmin() {
     statTile("💰", "orange", money(fines), "Tiền phạt đã ghi nhận");
 
   renderAdminLoans();
+  loadMembers();
 }
+
+// =========================================================
+// THỦ THƯ: SỬA / XÓA SÁCH
+// =========================================================
+function openEditBook(id) {
+  const b = booksById[id];
+  if (!b) return;
+  const f = document.getElementById("editBookForm");
+  f.id.value = b.id;
+  f.title.value = b.title || "";
+  f.author.value = b.author || "";
+  f.subject_code.value = b.subject_code || "";
+  f.shelf_location.value = b.shelf_location || "";
+  f.total_qty.value = b.total_qty;
+  f.book_link.value = b.book_link || "";
+  const borrowed = Number(b.total_qty) - Number(b.available_qty);
+  f.total_qty.min = Math.max(1, borrowed);
+  document.getElementById("editBookHint").textContent = borrowed > 0
+    ? `Đang có ${borrowed} cuốn được mượn, tổng số lượng không thể nhỏ hơn ${borrowed}.`
+    : "";
+  document.getElementById("editBookDialog").showModal();
+}
+function closeEditBook() {
+  document.getElementById("editBookDialog").close();
+}
+
+document.getElementById("editBookForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  await withLoading(f.querySelector("button[type=submit]"), async () => {
+    const { ok, data } = await sendJSON("PUT", "api/books.php", {
+      id: Number(f.id.value),
+      title: f.title.value,
+      author: f.author.value,
+      subject_code: f.subject_code.value,
+      shelf_location: f.shelf_location.value,
+      total_qty: Number(f.total_qty.value),
+      book_link: f.book_link.value,
+    });
+    if (!ok) {
+      showToast(data.error || "Sửa sách thất bại", "error");
+      return;
+    }
+    closeEditBook();
+    showToast(data.message || "Đã cập nhật sách", "success");
+    loadBooks();
+  });
+});
+
+async function deleteBook(id, btn) {
+  const b = booksById[id];
+  const name = b ? b.title : "cuốn sách này";
+  if (!confirm(`Xóa sách "${name}"?\n\nLịch sử mượn đã trả của sách này cũng sẽ bị xóa. Không thể hoàn tác.`)) return;
+  await withLoading(btn, async () => {
+    const { ok, data } = await sendJSON("DELETE", "api/books.php?id=" + Number(id));
+    if (!ok) {
+      showToast(data.error || "Xóa sách thất bại", "error");
+      return;
+    }
+    delete booksById[id];
+    showToast(data.message || "Đã xóa sách", "success");
+  });
+  loadBooks();
+}
+
+// =========================================================
+// THỦ THƯ: DANH SÁCH SINH VIÊN + KHÓA / MỞ KHÓA
+// =========================================================
+async function loadMembers() {
+  document.getElementById("memberList").innerHTML = skeleton(2);
+  allMembers = await getJSON("api/members.php");
+  renderMembers();
+}
+
+function renderMembers() {
+  const q = document.getElementById("memberSearch").value.trim().toLowerCase();
+  const list = allMembers.filter((m) => {
+    if (memberFilter === "active" && m.status !== "active") return false;
+    if (memberFilter === "locked" && m.status === "active") return false;
+    if (memberFilter === "overdue" && Number(m.overdue) === 0) return false;
+    if (!q) return true;
+    return [m.name, m.student_code, m.class_name].some((v) => String(v || "").toLowerCase().includes(q));
+  });
+
+  const locked = allMembers.filter((m) => m.status !== "active").length;
+  document.getElementById("memberCount").textContent =
+    `· ${allMembers.length} sinh viên${locked ? `, ${locked} đang khóa` : ""}`;
+
+  document.getElementById("memberList").innerHTML = list.length
+    ? list.map(renderMember).join("")
+    : emptyState("👥", "Không có sinh viên nào", q || memberFilter ? "Thử đổi bộ lọc hoặc từ khóa." : "Thêm sinh viên ở khung “Thêm học sinh” phía trên.");
+}
+
+function renderMember(m) {
+  const isLocked = m.status !== "active";
+  const borrowing = Number(m.borrowing);
+  const overdue = Number(m.overdue);
+  const fine = Number(m.total_fine);
+  return `
+    <div class="member ${isLocked ? "locked" : ""}">
+      <div class="member-avatar" style="--h:${hueOf(m.name)}">${initial(m.name)}</div>
+      <div>
+        <div class="member-name">${esc(m.name)}
+          ${isLocked ? `<span class="badge danger">Đã khóa</span>` : ""}
+          ${Number(m.has_password) ? "" : `<span class="badge warn">Chưa có mật khẩu</span>`}
+        </div>
+        <div class="member-meta">
+          <span>🎓 ${esc(m.student_code)}</span>
+          ${m.class_name ? `<span>${esc(m.class_name)}</span>` : ""}
+          ${m.contact ? `<span>${esc(m.contact)}</span>` : ""}
+        </div>
+      </div>
+      <div class="member-stats">
+        <span class="pill ${borrowing ? "blue" : ""}">Đang mượn ${borrowing}</span>
+        ${overdue ? `<span class="pill red">Quá hạn ${overdue}</span>` : ""}
+        ${fine ? `<span class="pill orange">Phạt ${money(fine)}</span>` : ""}
+      </div>
+      <div class="member-actions">
+        ${isLocked
+          ? `<button class="btn btn-success-ghost btn-xs" onclick="setMemberStatus(${Number(m.id)}, 'active', this)">🔓 Mở khóa</button>`
+          : `<button class="btn btn-danger-ghost btn-xs" onclick="setMemberStatus(${Number(m.id)}, 'locked', this)">🔒 Khóa mượn</button>`}
+      </div>
+    </div>`;
+}
+
+async function setMemberStatus(id, status, btn) {
+  const m = allMembers.find((x) => Number(x.id) === Number(id));
+  if (status === "locked" && !confirm(`Khóa quyền mượn sách của ${m ? m.name : "sinh viên này"}?\n\nSinh viên vẫn đăng nhập và xem sách được, nhưng không mượn thêm được cho tới khi mở khóa.`)) return;
+  await withLoading(btn, async () => {
+    const { ok, data } = await sendJSON("PUT", "api/members.php", { id, status });
+    if (!ok) {
+      showToast(data.error || "Cập nhật thất bại", "error");
+      return;
+    }
+    showToast(data.message, "success");
+  });
+  loadMembers();
+}
+
+document.querySelectorAll("#memberFilter .chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    document.querySelectorAll("#memberFilter .chip").forEach((c) => c.classList.remove("active"));
+    chip.classList.add("active");
+    memberFilter = chip.dataset.filter;
+    renderMembers();
+  });
+});
+document.getElementById("memberSearch").addEventListener("input", renderMembers);
 
 function renderAdminLoans() {
   const q = document.getElementById("loanSearch").value.trim().toLowerCase();
@@ -410,7 +570,7 @@ bindForm("addMemberForm", "api/members.php", (f) => ({
   class_name: f.class_name.value,
   contact: f.contact.value,
   password: f.password.value,
-}), "Đã thêm học sinh");
+}), "Đã thêm học sinh", loadMembers);
 
 bindForm("resetPasswordForm", "api/member_password.php", (f) => ({
   student_code: f.student_code.value,

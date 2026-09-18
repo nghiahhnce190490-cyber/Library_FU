@@ -19,7 +19,15 @@ $book_id = intval($data['book_id'] ?? 0);
 if (isset($_SESSION['member_id'])) {
     $member_id = (int) $_SESSION['member_id'];
 } elseif (isset($_SESSION['admin_id'])) {
-    $member_id = intval($data['member_id'] ?? 0);
+    // Thủ thư mượn hộ: nhận mã học sinh (hoặc member_id)
+    $student_code = trim($data['student_code'] ?? '');
+    if ($student_code !== '') {
+        $s = $pdo->prepare("SELECT id FROM members WHERE student_code = ?");
+        $s->execute([$student_code]);
+        $member_id = (int) $s->fetchColumn();
+    } else {
+        $member_id = intval($data['member_id'] ?? 0);
+    }
 } else {
     http_response_code(401);
     echo json_encode(["error" => "Bạn cần đăng nhập để mượn sách"]);

@@ -1,4 +1,5 @@
 <?php
+// (Cũ) Đăng nhập riêng cho thủ thư — giao diện mới dùng api/auth_login.php
 require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json; charset=utf-8');
 
@@ -28,6 +29,8 @@ if (!$admin || !password_verify($password, $admin['password_hash'])) {
     exit;
 }
 
+$_SESSION = [];
+session_regenerate_id(true);
 $_SESSION['admin_id'] = $admin['id'];
 $_SESSION['admin_username'] = $admin['username'];
 

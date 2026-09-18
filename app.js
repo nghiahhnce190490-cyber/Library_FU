@@ -32,6 +32,25 @@ function showToast(msg, type = "info") {
   toastTimer = setTimeout(() => (t.className = type), 3200);
 }
 
+// Máy chủ trả 401 trong khi giao diện vẫn nghĩ đang đăng nhập -> phiên đã hết hạn.
+// Kiểm tra lại phiên; nếu đúng là đã mất thì đưa về màn hình đăng nhập.
+let checkingSession = false;
+async function handleUnauthorized(url) {
+  if (url.includes("auth_login.php") || checkingSession || (!isAdmin && !currentStudent)) return;
+  checkingSession = true;
+  try {
+    const res = await fetch("api/session_check.php");
+    const s = await res.json();
+    if (!s.loggedIn && !s.student) {
+      isAdmin = false;
+      currentStudent = null;
+      await refreshSession();
+      document.getElementById("loginError").textContent = "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.";
+    }
+  } catch (e) { /* bỏ qua lỗi mạng */ }
+  checkingSession = false;
+}
+
 async function sendJSON(method, url, payload) {
   const res = await fetch(url, {
     method,
@@ -39,12 +58,14 @@ async function sendJSON(method, url, payload) {
     body: payload === undefined ? undefined : JSON.stringify(payload),
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401) handleUnauthorized(url);
   return { ok: res.ok, data };
 }
 const postJSON = (url, payload) => sendJSON("POST", url, payload);
 
 async function getJSON(url) {
   const res = await fetch(url);
+  if (res.status === 401) handleUnauthorized(url);
   return res.ok ? res.json() : [];
 }
 
@@ -144,6 +165,7 @@ async function logout() {
   ["bookList", "loanList", "allLoanList", "adminStats", "mySummary", "bookCount"].forEach(
     (id) => (document.getElementById(id).innerHTML = "")
   );
+  document.getElementById("loginError").textContent = "";
   await refreshSession();
   showToast("Đã đăng xuất");
 }
@@ -639,3 +661,142 @@ bindForm("resetPasswordForm", "api/member_password.php", (f) => ({
 
 // ---------- Khởi động ----------
 refreshSession();
+
+// =========================================================
+// QUÊN MẬT KHẨU (sinh viên) — gửi mã qua email rồi đặt mật khẩu mới
+// =========================================================
+let forgotCode = "";      // mã học sinh đang đặt lại
+let forgotEmail = "";     // email đã nhập
+let resendTimer = null;
+
+function openForgot() {
+  const s1 = document.getElementById("forgotStep1");
+  const s2 = document.getElementById("forgotStep2");
+  s1.reset(); s2.reset();
+  s1.style.display = ""; s2.style.display = "none";
+  document.getElementById("forgotError1").textContent = "";
+  document.getElementById("forgotError2").textContent = "";
+  // Điền sẵn mã học sinh nếu đã gõ ở ô đăng nhập
+  s1.student_code.value = document.querySelector("#loginForm [name=username]").value.trim();
+  document.getElementById("forgotDialog").showModal();
+}
+function closeForgot() {
+  clearInterval(resendTimer);
+  document.getElementById("forgotDialog").close();
+}
+
+function startResendCountdown(sec = 60) {
+  const btn = document.getElementById("resendBtn");
+  clearInterval(resendTimer);
+  btn.disabled = true;
+  let left = sec;
+  btn.textContent = `Gửi lại mã (${left}s)`;
+  resendTimer = setInterval(() => {
+    left -= 1;
+    if (left <= 0) {
+      clearInterval(resendTimer);
+      btn.disabled = false;
+      btn.textContent = "Gửi lại mã";
+    } else {
+      btn.textContent = `Gửi lại mã (${left}s)`;
+    }
+  }, 1000);
+}
+
+async function requestResetCode(code, email, btn, errEl) {
+  errEl.textContent = "";
+  let result;
+  await withLoading(btn, async () => {
+    result = await postJSON("api/forgot_password.php", { action: "request", student_code: code, email });
+  });
+  if (!result.ok) {
+    errEl.textContent = result.data.error || "Không gửi được mã";
+    return false;
+  }
+  forgotCode = code;
+  forgotEmail = email;
+  document.getElementById("forgotSentMsg").textContent = result.data.message;
+  startResendCountdown();
+  return true;
+}
+
+document.getElementById("forgotStep1").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const ok = await requestResetCode(f.student_code.value.trim(), f.email.value.trim(), f.querySelector("button[type=submit]"), document.getElementById("forgotError1"));
+  if (ok) {
+    f.style.display = "none";
+    const s2 = document.getElementById("forgotStep2");
+    s2.style.display = "";
+    s2.code.focus();
+  }
+});
+
+function resendCode() {
+  requestResetCode(forgotCode, forgotEmail, document.getElementById("resendBtn"), document.getElementById("forgotError2"));
+}
+
+document.getElementById("forgotStep2").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const errEl = document.getElementById("forgotError2");
+  errEl.textContent = "";
+  if (f.new_password.value !== f.confirm_password.value) {
+    errEl.textContent = "Hai mật khẩu mới không giống nhau";
+    return;
+  }
+  await withLoading(f.querySelector("button[type=submit]"), async () => {
+    const { ok, data } = await postJSON("api/forgot_password.php", {
+      action: "reset",
+      student_code: forgotCode,
+      code: f.code.value.trim(),
+      new_password: f.new_password.value,
+    });
+    if (!ok) {
+      errEl.textContent = data.error || "Đặt lại mật khẩu thất bại";
+      return;
+    }
+    closeForgot();
+    document.querySelector("#loginForm [name=username]").value = forgotCode;
+    document.querySelector("#loginForm [name=password]").value = "";
+    document.querySelector("#loginForm [name=password]").focus();
+    document.getElementById("loginError").textContent = "";
+    showToast(data.message, "success");
+  });
+});
+
+// =========================================================
+// ĐỔI MẬT KHẨU (đã đăng nhập — sinh viên hoặc thủ thư)
+// =========================================================
+function openChangePw() {
+  const f = document.getElementById("changePwForm");
+  f.reset();
+  document.getElementById("changePwError").textContent = "";
+  document.getElementById("changePwDialog").showModal();
+}
+function closeChangePw() {
+  document.getElementById("changePwDialog").close();
+}
+
+document.getElementById("changePwForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const errEl = document.getElementById("changePwError");
+  errEl.textContent = "";
+  if (f.new_password.value !== f.confirm_password.value) {
+    errEl.textContent = "Hai mật khẩu mới không giống nhau";
+    return;
+  }
+  await withLoading(f.querySelector("button[type=submit]"), async () => {
+    const { ok, data } = await postJSON("api/change_password.php", {
+      current_password: f.current_password.value,
+      new_password: f.new_password.value,
+    });
+    if (!ok) {
+      errEl.textContent = data.error || "Đổi mật khẩu thất bại";
+      return;
+    }
+    closeChangePw();
+    showToast(data.message || "Đã đổi mật khẩu", "success");
+  });
+});

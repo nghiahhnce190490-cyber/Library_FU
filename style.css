@@ -443,3 +443,11 @@ input:focus { border-color: var(--navy-600); box-shadow: 0 0 0 4px rgba(42, 85, 
   .member-stats, .member-actions { grid-column: 2; justify-content: flex-start; }
 }
 .member-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+/* Quên / đổi mật khẩu */
+.link { color: var(--navy-600); font-weight: 600; text-decoration: none; }
+.link:hover { text-decoration: underline; }
+.notice-text { background: var(--ok-bg); color: var(--ok); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13px; font-weight: 500; }
+.modal-actions-split { justify-content: space-between; }
+.modal .stack { gap: 12px; }
+#forgotStep2 input[name=code] { letter-spacing: 8px; font-size: 20px; font-weight: 700; text-align: center; }

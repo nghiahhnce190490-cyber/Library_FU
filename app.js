@@ -467,6 +467,8 @@ function renderMember(m) {
         ${fine ? `<span class="pill orange">Phạt ${money(fine)}</span>` : ""}
       </div>
       <div class="member-actions">
+        <button class="btn btn-outline btn-xs" onclick="openEditMember(${Number(m.id)})">✏️ Sửa</button>
+        <button class="btn btn-danger-ghost btn-xs" onclick="deleteMember(${Number(m.id)}, this)">🗑 Xóa</button>
         ${isLocked
           ? `<button class="btn btn-success-ghost btn-xs" onclick="setMemberStatus(${Number(m.id)}, 'active', this)">🔓 Mở khóa</button>`
           : `<button class="btn btn-danger-ghost btn-xs" onclick="setMemberStatus(${Number(m.id)}, 'locked', this)">🔒 Khóa mượn</button>`}
@@ -486,6 +488,64 @@ async function setMemberStatus(id, status, btn) {
     showToast(data.message, "success");
   });
   loadMembers();
+}
+
+function openEditMember(id) {
+  const m = allMembers.find((x) => Number(x.id) === Number(id));
+  if (!m) return;
+  const f = document.getElementById("editMemberForm");
+  f.id.value = m.id;
+  f.student_code.value = m.student_code || "";
+  f.name.value = m.name || "";
+  f.class_name.value = m.class_name || "";
+  f.contact.value = m.contact || "";
+  document.getElementById("editMemberDialog").showModal();
+}
+function closeEditMember() {
+  document.getElementById("editMemberDialog").close();
+}
+
+document.getElementById("editMemberForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  await withLoading(f.querySelector("button[type=submit]"), async () => {
+    const { ok, data } = await sendJSON("PUT", "api/members.php", {
+      id: Number(f.id.value),
+      student_code: f.student_code.value,
+      name: f.name.value,
+      class_name: f.class_name.value,
+      contact: f.contact.value,
+    });
+    if (!ok) {
+      showToast(data.error || "Sửa thông tin thất bại", "error");
+      return;
+    }
+    closeEditMember();
+    showToast(data.message || "Đã cập nhật", "success");
+    loadMembers();
+    renderAdminLoansFresh();
+  });
+});
+
+async function deleteMember(id, btn) {
+  const m = allMembers.find((x) => Number(x.id) === Number(id));
+  const name = m ? `${m.name} (${m.student_code})` : "sinh viên này";
+  if (!confirm(`Xóa sinh viên ${name}?\n\nLịch sử mượn đã trả của sinh viên này cũng sẽ bị xóa. Không thể hoàn tác.`)) return;
+  await withLoading(btn, async () => {
+    const { ok, data } = await sendJSON("DELETE", "api/members.php?id=" + Number(id));
+    if (!ok) {
+      showToast(data.error || "Xóa thất bại", "error");
+      return;
+    }
+    showToast(data.message || "Đã xóa", "success");
+  });
+  loadAdmin();
+}
+
+// Tải lại phiếu mượn (tên/mã sinh viên trong phiếu có thể vừa đổi)
+async function renderAdminLoansFresh() {
+  allLoans = await getJSON("api/loans.php");
+  renderAdminLoans();
 }
 
 document.querySelectorAll("#memberFilter .chip").forEach((chip) => {

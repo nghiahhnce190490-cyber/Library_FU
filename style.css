@@ -442,3 +442,4 @@ input:focus { border-color: var(--navy-600); box-shadow: 0 0 0 4px rgba(42, 85, 
   .member { grid-template-columns: 40px 1fr; }
   .member-stats, .member-actions { grid-column: 2; justify-content: flex-start; }
 }
+.member-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }

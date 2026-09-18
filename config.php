@@ -1,4 +1,8 @@
 <?php
+// Múi giờ Việt Nam — để ngày mượn, hạn trả, tiền phạt tính đúng theo giờ VN
+// (container Docker trên Render mặc định dùng giờ UTC, chậm 7 tiếng)
+date_default_timezone_set('Asia/Ho_Chi_Minh');
+
 // Thông tin kết nối MySQL/MariaDB (SkySQL).
 // Local (XAMPP): nếu không có biến môi trường, sẽ dùng giá trị mặc định bên dưới.
 // Trên Render: đặt các biến môi trường DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
@@ -31,5 +35,7 @@ try {
 } catch (PDOException $e) {
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
-    die(json_encode(["error" => "Không thể kết nối cơ sở dữ liệu: " . $e->getMessage()]));
+    // Không in chi tiết lỗi ra ngoài (có thể lộ host/user database)
+    error_log("DB connect error: " . $e->getMessage());
+    die(json_encode(["error" => "Không thể kết nối cơ sở dữ liệu"]));
 }

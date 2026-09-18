@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS members (
   name VARCHAR(255) NOT NULL,
   class_name VARCHAR(100),
   contact VARCHAR(255),
-  status VARCHAR(20) NOT NULL DEFAULT 'active'
+  status VARCHAR(20) NOT NULL DEFAULT 'active',
+  password_hash VARCHAR(255) NULL
 );
 
 CREATE TABLE IF NOT EXISTS loans (

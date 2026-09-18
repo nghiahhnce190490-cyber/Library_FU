@@ -2,6 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Quản lý thư viện</title>
 <link rel="stylesheet" href="style.css" />
 </head>
@@ -10,7 +11,7 @@
     <h1>Thư viện — Checkin/Checkout</h1>
     <nav>
       <button class="tab-btn active" data-tab="search">Tìm & mượn sách</button>
-      <button class="tab-btn" data-tab="return">Trả sách</button>
+      <button class="tab-btn" data-tab="return">Sách của tôi</button>
       <button class="tab-btn" data-tab="admin">Quản lý (thủ thư)</button>
     </nav>
   </header>
@@ -18,23 +19,37 @@
   <main>
     <!-- TAB: TÌM & MƯỢN SÁCH -->
     <section id="tab-search" class="tab-panel active">
+
+      <!-- Đăng nhập học sinh: hiện khi CHƯA đăng nhập -->
+      <div id="studentLogin" class="member-select">
+        <h2>Đăng nhập học sinh</h2>
+        <form id="studentLoginForm" class="form-grid">
+          <input name="student_code" placeholder="Mã học sinh" required />
+          <input name="password" type="password" placeholder="Mật khẩu" required />
+          <button type="submit">Đăng nhập</button>
+        </form>
+        <p id="studentLoginError" style="color:#c0392b;"></p>
+      </div>
+
+      <!-- Thông tin học sinh: hiện khi ĐÃ đăng nhập -->
+      <div id="studentInfo" class="member-select" style="display:none;">
+        <span>Xin chào, <strong id="studentName"></strong> (<span id="studentCode"></span>)</span>
+        <button onclick="logout()">Đăng xuất</button>
+      </div>
+
       <div class="filters">
         <input type="text" id="searchInput" placeholder="Tìm theo tên sách hoặc tác giả..." />
         <input type="text" id="subjectInput" placeholder="Mã môn (vd: TOAN101)" />
         <button onclick="loadBooks()">Tìm kiếm</button>
       </div>
 
-      <div class="member-select">
-        <label>Chọn tài khoản (mã học sinh):</label>
-        <select id="memberSelect"></select>
-      </div>
-
       <div id="bookList" class="card-list"></div>
     </section>
 
-    <!-- TAB: TRẢ SÁCH -->
+    <!-- TAB: SÁCH CỦA TÔI -->
     <section id="tab-return" class="tab-panel">
-      <h2>Danh sách đang mượn / quá hạn</h2>
+      <h2>Sách tôi đang mượn</h2>
+      <p class="meta">Muốn trả sách, hãy mang sách đến quầy thủ thư để được xác nhận.</p>
       <div id="loanList" class="card-list"></div>
     </section>
 
@@ -56,7 +71,7 @@
       <div id="adminPanel" style="display:none;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <p>Xin chào, <strong id="adminUsername"></strong></p>
-          <button onclick="adminLogout()">Đăng xuất</button>
+          <button onclick="logout()">Đăng xuất</button>
         </div>
 
         <h2>Thêm sách mới</h2>
@@ -76,7 +91,14 @@
           <input name="name" placeholder="Họ tên" required />
           <input name="class_name" placeholder="Lớp/Khoa" />
           <input name="contact" placeholder="Liên hệ (email/SĐT)" />
+          <input name="password" type="password" minlength="6" placeholder="Mật khẩu ban đầu (≥ 6 ký tự)" required />
           <button type="submit">Thêm thành viên</button>
+        </form>
+
+        <h2>Đặt lại mật khẩu học sinh</h2>
+          <input name="student_code" placeholder="Mã học sinh" required />
+          <input name="password" type="password" minlength="6" placeholder="Mật khẩu mới (≥ 6 ký tự)" required />
+          <button type="submit">Đặt lại mật khẩu</button>
         </form>
 
         <h2>Toàn bộ phiếu mượn</h2>

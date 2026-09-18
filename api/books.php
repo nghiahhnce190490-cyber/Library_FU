@@ -5,6 +5,13 @@ header('Content-Type: application/json; charset=utf-8');
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
+    // Phải đăng nhập (học sinh hoặc thủ thư) mới xem được danh sách sách
+    if (!isset($_SESSION['admin_id']) && !isset($_SESSION['member_id'])) {
+        http_response_code(401);
+        echo json_encode(["error" => "Bạn cần đăng nhập để xem sách"]);
+        exit;
+    }
+
     $search = trim($_GET['search'] ?? '');
     $subject = trim($_GET['subject'] ?? '');
 

@@ -4,3 +4,4 @@ Dockerfile
 .dockerignore
 README.md
 schema.sql
+sql

@@ -1,10 +1,14 @@
 FROM php:8.2-apache
 
-# Cài driver kết nối MySQL cho PHP
-RUN docker-php-ext-install mysqli pdo pdo_mysql
+# Chỉ cần driver PDO MySQL (pdo đã có sẵn trong image)
+RUN docker-php-ext-install pdo_mysql
 
-# Copy toàn bộ code của project vào thư mục web root của Apache
+# Cho Apache nghe theo biến PORT của Render (mặc định 80 khi chạy local)
+ENV PORT=80
+RUN sed -i 's/Listen 80/Listen ${PORT}/' /etc/apache2/ports.conf \
+ && sed -i 's/<VirtualHost \*:80>/<VirtualHost *:${PORT}>/' /etc/apache2/sites-available/000-default.conf
+
+# Copy code vào web root
 COPY . /var/www/html/
 
-# Render sẽ tự nhận cổng này để expose ra internet
 EXPOSE 80

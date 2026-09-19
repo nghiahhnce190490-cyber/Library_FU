@@ -5,7 +5,8 @@
 require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json; charset=utf-8');
 
-define('LOAN_DAYS', 14); // số ngày mượn mặc định
+define('LOAN_DAYS', 90); // số ngày mượn mặc định (3 tháng)
+define('MAX_ACTIVE_LOANS', 5); // mỗi sinh viên mượn tối đa 5 cuốn cùng lúc
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -45,12 +46,46 @@ if (!$member) {
 }
 if ($member['status'] !== 'active') {
     http_response_code(400);
-    echo json_encode(["error" => "Tài khoản đang bị khóa mượn (do phạt hoặc nghỉ học)"]);
+    echo json_encode(["error" => isset($_SESSION['member_id'])
+        ? "Tài khoản của bạn đang bị khóa quyền mượn. Vui lòng liên hệ thủ thư."
+        : "Sinh viên {$member['name']} ({$member['student_code']}) đang bị khóa quyền mượn."]);
     exit;
 }
 
+ensure_loan_time_columns($pdo);
+
 try {
     $pdo->beginTransaction();
+
+    // Khóa dòng sinh viên -> 1 người bấm mượn nhiều lần cùng lúc cũng không vượt quá giới hạn
+    $pdo->prepare("SELECT id FROM members WHERE id = ? FOR UPDATE")->execute([$member_id]);
+
+    // Chữ "Bạn" khi sinh viên tự mượn, tên sinh viên khi thủ thư mượn hộ
+    $who = isset($_SESSION['member_id']) ? "Bạn" : "Sinh viên {$member['name']} ({$member['student_code']})";
+
+    // Quy định 1: đang có sách quá hạn thì phải trả trước rồi mới được mượn tiếp
+    $od = $pdo->prepare(
+        "SELECT COUNT(*) FROM loans WHERE member_id = ? AND status <> 'returned' AND due_date < ?"
+    );
+    $od->execute([$member_id, date('Y-m-d')]);
+    $overdue = (int) $od->fetchColumn();
+    if ($overdue > 0) {
+        $pdo->rollBack();
+        http_response_code(400);
+        echo json_encode(["error" => "$who đang có $overdue cuốn quá hạn. Cần trả sách quá hạn (và đóng phạt) trước khi mượn thêm."]);
+        exit;
+    }
+
+    // Quy định 2: tối đa MAX_ACTIVE_LOANS cuốn cùng lúc
+    $ac = $pdo->prepare("SELECT COUNT(*) FROM loans WHERE member_id = ? AND status <> 'returned'");
+    $ac->execute([$member_id]);
+    $active = (int) $ac->fetchColumn();
+    if ($active >= MAX_ACTIVE_LOANS) {
+        $pdo->rollBack();
+        http_response_code(400);
+        echo json_encode(["error" => "$who đang mượn $active/" . MAX_ACTIVE_LOANS . " cuốn (tối đa " . MAX_ACTIVE_LOANS . "). Cần trả bớt sách trước khi mượn thêm."]);
+        exit;
+    }
 
     // Khóa dòng sách lại trong lúc xử lý -> 2 người bấm cùng lúc sẽ phải xếp hàng
     $bookStmt = $pdo->prepare("SELECT * FROM books WHERE id = ? FOR UPDATE");
@@ -90,9 +125,9 @@ try {
     $due_date = date('Y-m-d', strtotime("+" . LOAN_DAYS . " days"));
 
     $insert = $pdo->prepare(
-        "INSERT INTO loans (book_id, member_id, borrow_date, due_date, status) VALUES (?, ?, ?, ?, 'borrowed')"
+        "INSERT INTO loans (book_id, member_id, borrow_date, borrow_at, due_date, status) VALUES (?, ?, ?, ?, ?, 'borrowed')"
     );
-    $insert->execute([$book_id, $member_id, $borrow_date, $due_date]);
+    $insert->execute([$book_id, $member_id, $borrow_date, date('Y-m-d H:i:s'), $due_date]);
     $loan_id = $pdo->lastInsertId();
 
     $pdo->commit();
@@ -107,5 +142,7 @@ echo json_encode([
     "loan_id" => $loan_id,
     "due_date" => $due_date,
     "shelf_location" => $book['shelf_location'],
-    "message" => "Mượn thành công. Hạn trả: $due_date. Vị trí kệ: {$book['shelf_location']}",
+    "borrowing" => $active + 1,
+    "max_loans" => MAX_ACTIVE_LOANS,
+    "message" => "Mượn thành công lúc " . date('H:i') . " (" . ($active + 1) . "/" . MAX_ACTIVE_LOANS . " cuốn). Hạn trả: " . date('d/m/Y', strtotime($due_date)) . ". Vị trí kệ: {$book['shelf_location']}",
 ]);

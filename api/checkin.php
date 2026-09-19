@@ -3,7 +3,7 @@
 require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json; charset=utf-8');
 
-define('FINE_PER_DAY', 2000); // VND phạt mỗi ngày trễ
+define('FINE_PER_DAY', 5000); // VND phạt mỗi ngày trễ
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -19,6 +19,8 @@ if (!isset($_SESSION['admin_id'])) {
 
 $data = json_decode(file_get_contents('php://input'), true);
 $loan_id = intval($data['loan_id'] ?? 0);
+
+ensure_loan_time_columns($pdo);
 
 try {
     $pdo->beginTransaction();
@@ -49,8 +51,8 @@ try {
     }
     $return_date = $today->format('Y-m-d');
 
-    $pdo->prepare("UPDATE loans SET return_date = ?, status = 'returned', fine = ? WHERE id = ?")
-        ->execute([$return_date, $fine, $loan_id]);
+    $pdo->prepare("UPDATE loans SET return_date = ?, returned_at = ?, status = 'returned', fine = ? WHERE id = ?")
+        ->execute([$return_date, date('Y-m-d H:i:s'), $fine, $loan_id]);
 
     $pdo->prepare("UPDATE books SET available_qty = LEAST(available_qty + 1, total_qty) WHERE id = ?")
         ->execute([$loan['book_id']]);

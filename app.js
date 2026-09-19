@@ -89,8 +89,13 @@ function initial(text) {
 
 // Nút đọc online trên thẻ sách, ghi rõ đọc được bao nhiêu
 const ACCESS_LABEL = { full: "📖 Đọc toàn bộ", partial: "📖 Đọc thử", none: "ℹ️ Thông tin sách" };
+// Link đọc cũ dạng play.google.com (bắt đăng nhập) -> đổi sang trình đọc của books.google.com
+function readerUrl(url) {
+  const m = /^https:\/\/play\.google\.com\/books\/reader\?id=([^&]+)/.exec(url || "");
+  return m ? `https://books.google.com/books?id=${m[1]}&printsec=frontcover` : url;
+}
 function readButton(b) {
-  const link = safeUrl(b.book_link);
+  const link = safeUrl(readerUrl(b.book_link));
   if (!link) return "";
   const label = ACCESS_LABEL[b.read_access] || "📖 Đọc online";
   return `<a class="tag read ${esc(b.read_access || "unknown")}" href="${esc(link)}" target="_blank" rel="noopener">${label} ↗</a>`;
@@ -952,11 +957,10 @@ async function searchGoogleBooks(q, max = 5) {
     const view = (it.accessInfo || {}).viewability;
     const access = view === "ALL_PAGES" ? "full" : view === "PARTIAL" ? "partial" : "none";
     const id = encodeURIComponent(it.id || "");
-    // Đọc được -> mở thẳng trang đọc; không đọc được -> trang thông tin sách
-    const reader = String((it.accessInfo || {}).webReaderLink || "").replace(/^http:/, "https:");
+    // Đọc được -> mở thẳng trang đọc (không cần đăng nhập Google); không đọc được -> trang thông tin sách
     const link = !id ? "" : access === "none"
       ? `https://books.google.com/books?id=${id}`
-      : safeUrl(reader) || `https://books.google.com/books?id=${id}&printsec=frontcover`;
+      : `https://books.google.com/books?id=${id}&printsec=frontcover`;
     return {
       title: v.title || "",
       fullTitle: [v.title, v.subtitle].filter(Boolean).join(" "),

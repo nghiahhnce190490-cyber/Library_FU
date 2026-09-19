@@ -335,7 +335,7 @@ function renderBook(b) {
   const canBorrow = currentStudent || isAdmin;
 
   return `
-    <article class="book">
+    <article class="book" data-cat="${categoryOf(b)}">
       ${coverHtml(b.title, b.cover_url)}
       <div class="book-body">
         <h3>${esc(b.title)}</h3>

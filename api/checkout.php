@@ -6,7 +6,7 @@ require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json; charset=utf-8');
 
 define('LOAN_DAYS', 90); // số ngày mượn mặc định (3 tháng)
-define('MAX_ACTIVE_LOANS', 5); // mỗi sinh viên mượn tối đa 5 cuốn cùng lúc
+define('MAX_ACTIVE_LOANS', 10); // mỗi sinh viên mượn tối đa 5 cuốn cùng lúc
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

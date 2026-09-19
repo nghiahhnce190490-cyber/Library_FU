@@ -1449,4 +1449,4 @@ if (!reduceMotion && window.matchMedia("(hover: hover) and (pointer: fine)").mat
     art.style.setProperty("--sx", e.clientX - r.left + "px");
     art.style.setProperty("--sy", e.clientY - r.top + "px");
   });
-})();
+})();s

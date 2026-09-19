@@ -724,7 +724,11 @@ bindForm("addBookForm", "api/books.php", (f) => ({
   cover_url: f.cover_url.value,
   shelf_location: f.shelf_location.value,
   total_qty: Number(f.total_qty.value),
-}), "Đã thêm sách mới", () => { loadAdmin(); updateCoverPreview(document.getElementById("addBookForm")); });
+}), "Đã thêm sách mới", () => {
+  loadAdmin();
+  updateCoverPreview(document.getElementById("addBookForm"));
+  document.getElementById("quickFindResults").innerHTML = "";
+});
 
 // Xem trước ảnh bìa khi thủ thư dán link
 function updateCoverPreview(form) {
@@ -919,43 +923,61 @@ function firstAuthor(author) {
   return /nhiều tác giả|chưa rõ/i.test(a) ? "" : a;
 }
 
-async function coverFromGoogle(b) {
-  const author = firstAuthor(b.author);
-  const q = `intitle:${b.title}` + (author ? ` inauthor:${author}` : "");
-  const url = "https://www.googleapis.com/books/v1/volumes?maxResults=5&printType=books"
-    + "&fields=items(volumeInfo(title,subtitle,imageLinks))&q=" + encodeURIComponent(q);
+// Tìm trên Google Books. Trả về danh sách {title, authors, year, cover, link}
+async function searchGoogleBooks(q, max = 5) {
+  const url = "https://www.googleapis.com/books/v1/volumes?printType=books&maxResults=" + max
+    + "&fields=items(id,volumeInfo(title,subtitle,authors,publishedDate,imageLinks))&q=" + encodeURIComponent(q);
   const res = await fetch(url);
-  if (!res.ok) return null;
+  if (!res.ok) throw new Error("google " + res.status);
   const data = await res.json();
-  for (const it of data.items || []) {
+  return (data.items || []).map((it) => {
     const v = it.volumeInfo || {};
     const img = v.imageLinks && (v.imageLinks.thumbnail || v.imageLinks.smallThumbnail);
-    const fullTitle = [v.title, v.subtitle].filter(Boolean).join(" ");
-    if (img && titleMatches(b.title, fullTitle)) {
-      return { url: img.replace(/^http:/, "https:").replace("&edge=curl", ""), source: "Google Books", found: v.title };
-    }
-  }
-  return null;
+    return {
+      title: v.title || "",
+      fullTitle: [v.title, v.subtitle].filter(Boolean).join(" "),
+      authors: (v.authors || []).join(", "),
+      year: (v.publishedDate || "").slice(0, 4),
+      cover: img ? img.replace(/^http:/, "https:").replace("&edge=curl", "") : "",
+      link: it.id ? `https://books.google.com/books?id=${encodeURIComponent(it.id)}` : "",
+      source: "Google Books",
+    };
+  });
 }
 
-async function coverFromOpenLibrary(b) {
-  const params = new URLSearchParams({ title: b.title, limit: "5", fields: "title,cover_i" });
-  const author = firstAuthor(b.author);
-  if (author) params.set("author", author);
-  const res = await fetch("https://openlibrary.org/search.json?" + params.toString());
-  if (!res.ok) return null;
+// Tìm trên Open Library (dự phòng khi Google không có / bị giới hạn)
+async function searchOpenLibrary(params, max = 5) {
+  const p = new URLSearchParams({ ...params, limit: String(max), fields: "key,title,author_name,first_publish_year,cover_i" });
+  const res = await fetch("https://openlibrary.org/search.json?" + p.toString());
+  if (!res.ok) throw new Error("openlibrary " + res.status);
   const data = await res.json();
-  for (const d of data.docs || []) {
-    if (d.cover_i && titleMatches(b.title, d.title)) {
-      return { url: `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`, source: "Open Library", found: d.title };
-    }
-  }
-  return null;
+  return (data.docs || []).map((d) => ({
+    title: d.title || "",
+    fullTitle: d.title || "",
+    authors: (d.author_name || []).slice(0, 3).join(", "),
+    year: d.first_publish_year ? String(d.first_publish_year) : "",
+    cover: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : "",
+    link: d.key ? `https://openlibrary.org${d.key}` : "",
+    source: "Open Library",
+  }));
 }
 
+// Tìm ảnh bìa + link cho 1 cuốn đã có trong thư viện (tên phải khớp)
 async function findCover(b) {
-  try { const g = await coverFromGoogle(b); if (g) return g; } catch (e) { /* thử nguồn khác */ }
-  try { return await coverFromOpenLibrary(b); } catch (e) { return null; }
+  const author = firstAuthor(b.author);
+  const pick = (list) => list.find((x) => (x.cover || x.link) && titleMatches(b.title, x.fullTitle));
+  let best = null;
+  try {
+    best = pick(await searchGoogleBooks(`intitle:${b.title}` + (author ? ` inauthor:${author}` : "")));
+  } catch (e) { /* thử nguồn khác */ }
+  if (!best || !best.cover) {
+    try {
+      const ol = pick(await searchOpenLibrary(author ? { title: b.title, author } : { title: b.title }));
+      if (ol && (!best || ol.cover)) best = best ? { ...best, cover: ol.cover } : ol;
+    } catch (e) { /* bỏ qua */ }
+  }
+  if (!best) return null;
+  return { url: best.cover, link: best.link, source: best.source, found: best.title };
 }
 
 let coverCandidates = [];
@@ -970,9 +992,9 @@ document.getElementById("coverFindBtn").addEventListener("click", async (e) => {
   results.innerHTML = "";
   coverCandidates = [];
 
-  const books = (await getJSON("api/books.php")).filter((b) => !safeUrl(b.cover_url));
+  const books = (await getJSON("api/books.php")).filter((b) => !safeUrl(b.cover_url) || !safeUrl(b.book_link));
   if (books.length === 0) {
-    status.textContent = "· Tất cả sách đã có ảnh bìa";
+    status.textContent = "· Tất cả sách đã có ảnh bìa và link";
     btn.disabled = false;
     return;
   }
@@ -985,23 +1007,31 @@ document.getElementById("coverFindBtn").addEventListener("click", async (e) => {
       const c = await findCover(b);
       done++;
       status.textContent = `· Đang tìm ${done}/${books.length}…`;
-      if (c) {
-        coverCandidates.push({ book: b, ...c });
-        results.insertAdjacentHTML("beforeend", `
-          <label class="cover-cand" data-id="${Number(b.id)}">
-            <input type="checkbox" checked />
-            <img src="${esc(c.url)}" alt="" loading="lazy" referrerpolicy="no-referrer"
-                 onerror="this.closest('.cover-cand').remove();">
-            <span class="cover-cand-title">${esc(b.title)}</span>
-            <span class="muted small">${esc(c.source)}</span>
-          </label>`);
-      }
+      if (!c) continue;
+      // Chỉ lấy phần sách đang thiếu
+      const addCover = !safeUrl(b.cover_url) && c.url ? c.url : "";
+      const addLink = !safeUrl(b.book_link) && c.link ? c.link : "";
+      if (!addCover && !addLink) continue;
+      coverCandidates.push({ book: b, url: addCover, link: addLink, source: c.source });
+      const what = addCover && addLink ? "Ảnh + link" : addCover ? "Ảnh bìa" : "Link sách";
+      const shown = addCover || safeUrl(b.cover_url);
+      results.insertAdjacentHTML("beforeend", `
+        <label class="cover-cand" data-id="${Number(b.id)}">
+          <input type="checkbox" checked />
+          ${shown
+            ? `<img src="${esc(shown)}" alt="" loading="lazy" referrerpolicy="no-referrer"
+                    onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'cover-cand-noimg',textContent:'Không tải được ảnh'}));">`
+            : `<div class="cover-cand-noimg">Chỉ có link</div>`}
+          <span class="cover-cand-title">${esc(b.title)}</span>
+          <span class="muted small">${what} · ${esc(c.source)}</span>
+          ${addLink ? `<a class="small link" href="${esc(addLink)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Xem link ↗</a>` : ""}
+        </label>`);
     }
   }
   await Promise.all([worker(), worker(), worker()]); // tìm 3 cuốn cùng lúc
 
   const found = results.querySelectorAll(".cover-cand").length;
-  status.textContent = `· Tìm được ${found}/${books.length} sách. Sách không tìm thấy vẫn dùng bìa màu.`;
+  status.textContent = `· Tìm được ${found}/${books.length} sách. Sách không tìm thấy vẫn giữ như cũ.`;
   actions.hidden = found === 0;
   btn.disabled = false;
 });
@@ -1025,13 +1055,75 @@ document.getElementById("coverSaveBtn").addEventListener("click", async (e) => {
   await withLoading(e.currentTarget, async () => {
     let ok = 0;
     for (const c of chosen) {
-      const r = await sendJSON("PUT", "api/books.php", { id: Number(c.book.id), cover_url: c.url, only_cover: true });
+      const r = await sendJSON("PUT", "api/books.php", { id: Number(c.book.id), cover_url: c.url, book_link: c.link, only_cover: true });
       if (r.ok) ok++;
     }
-    showToast(`Đã lưu ảnh bìa cho ${ok} cuốn sách`, "success");
+    showToast(`Đã lưu ảnh bìa / link cho ${ok} cuốn sách`, "success");
   });
   document.getElementById("coverResults").innerHTML = "";
   document.getElementById("coverActions").hidden = true;
   document.getElementById("coverStatus").textContent = "";
   loadBooks();
+});
+
+// =========================================================
+// THỦ THƯ: TÌM NHANH ĐỂ TỰ ĐIỀN KHI THÊM SÁCH
+// =========================================================
+let quickFindItems = [];
+
+async function quickFind() {
+  const input = document.getElementById("quickFindInput");
+  const box = document.getElementById("quickFindResults");
+  const q = input.value.trim();
+  if (q.length < 2) {
+    showToast("Nhập tên sách hoặc mã ISBN để tìm", "error");
+    input.focus();
+    return;
+  }
+  const isbn = q.replace(/[-\s]/g, "");
+  const isIsbn = /^(\d{9}[\dXx]|\d{13})$/.test(isbn);
+
+  box.innerHTML = `<p class="muted small">Đang tìm…</p>`;
+  let items = [];
+  try {
+    items = await searchGoogleBooks(isIsbn ? `isbn:${isbn}` : q, 6);
+  } catch (e) { /* thử nguồn khác */ }
+  if (items.length === 0) {
+    try { items = await searchOpenLibrary(isIsbn ? { isbn } : { q }, 6); } catch (e) { /* bỏ qua */ }
+  }
+  quickFindItems = items;
+
+  if (items.length === 0) {
+    box.innerHTML = `<p class="muted small">Không tìm thấy. Bạn nhập tay các thông tin bên dưới nhé.</p>`;
+    return;
+  }
+  box.innerHTML = items.map((it, i) => `
+    <button type="button" class="qf-item" data-i="${i}">
+      ${safeUrl(it.cover)
+        ? `<img src="${esc(it.cover)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">`
+        : `<span class="qf-noimg">📘</span>`}
+      <span class="qf-text">
+        <strong>${esc(it.title)}</strong>
+        <span class="muted small">${esc(it.authors || "Chưa rõ tác giả")}${it.year ? " · " + esc(it.year) : ""} · ${esc(it.source)}</span>
+      </span>
+    </button>`).join("");
+}
+
+document.getElementById("quickFindBtn").addEventListener("click", quickFind);
+document.getElementById("quickFindInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); quickFind(); }   // không gửi form thêm sách
+});
+document.getElementById("quickFindResults").addEventListener("click", (e) => {
+  const btn = e.target.closest(".qf-item");
+  if (!btn) return;
+  const it = quickFindItems[Number(btn.dataset.i)];
+  const f = document.getElementById("addBookForm");
+  f.title.value = it.title;
+  f.author.value = it.authors;
+  f.cover_url.value = safeUrl(it.cover);
+  f.book_link.value = safeUrl(it.link);
+  updateCoverPreview(f);
+  document.getElementById("quickFindResults").innerHTML =
+    `<p class="notice-text">✅ Đã điền sẵn tên sách, tác giả, ảnh bìa và link. Nhập thêm mã môn, vị trí kệ, số lượng rồi bấm “Thêm sách”.</p>`;
+  f.subject_code.focus();
 });

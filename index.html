@@ -178,13 +178,13 @@
 
         <div class="panel panel-gap" id="coverPanel">
           <div class="panel-head panel-head-wrap">
-            <div class="panel-head-title"><span class="panel-icon">🖼️</span><h3>Ảnh bìa sách</h3><span class="muted small" id="coverStatus"></span></div>
+            <div class="panel-head-title"><span class="panel-icon">🖼️</span><h3>Ảnh bìa &amp; link sách</h3><span class="muted small" id="coverStatus"></span></div>
             <div class="toolbar">
-              <button type="button" class="btn btn-primary btn-sm" id="coverFindBtn">🔍 Tự tìm ảnh bìa</button>
+              <button type="button" class="btn btn-primary btn-sm" id="coverFindBtn">🔍 Tự tìm ảnh bìa &amp; link</button>
             </div>
           </div>
-          <p class="muted small">Web sẽ tìm ảnh bìa trên Google Books / Open Library theo tên sách và tác giả cho những sách chưa có ảnh.
-            Kiểm tra lại rồi bỏ chọn ảnh nào sai trước khi lưu.</p>
+          <p class="muted small">Web tìm trên Google Books / Open Library theo tên sách và tác giả, cho những sách còn thiếu ảnh bìa hoặc link sách
+            (link tới trang giới thiệu / đọc thử của sách). Kiểm tra lại, bỏ chọn cuốn nào sai rồi mới lưu. Cái đã có sẵn sẽ không bị ghi đè.</p>
           <div id="coverResults" class="cover-results"></div>
           <div class="cover-actions" id="coverActions" hidden>
             <button type="button" class="btn btn-outline btn-sm" id="coverToggleAll">Bỏ chọn tất cả</button>
@@ -196,6 +196,14 @@
           <div class="panel">
             <div class="panel-head"><span class="panel-icon">📚</span><h3>Thêm sách mới</h3></div>
             <form id="addBookForm" class="form-grid">
+              <div class="field span-2 quickfind">
+                <span>⚡ Tìm nhanh để tự điền (tên sách hoặc mã ISBN)</span>
+                <div class="quickfind-row">
+                  <input type="text" id="quickFindInput" placeholder="VD: Marketing Management hoặc 9780133856460" autocomplete="off" />
+                  <button type="button" class="btn btn-outline" id="quickFindBtn">Tìm</button>
+                </div>
+                <div id="quickFindResults" class="quickfind-results"></div>
+              </div>
               <label class="field span-2"><span>Tên sách *</span><input name="title" required /></label>
               <label class="field"><span>Tác giả</span><input name="author" /></label>
               <label class="field"><span>Mã môn</span><input name="subject_code" placeholder="VD: MAE101" /></label>

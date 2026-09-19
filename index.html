@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="style.css?v=8" />
+<link rel="stylesheet" href="style.css?v=9" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f26f21' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5a2.5 2.5 0 0 0 0 5H19'/%3E%3C/svg%3E" />
 </head>
 <body>
@@ -142,8 +142,10 @@
           <button class="chip" data-cat="eng">🇬🇧 Tiếng Anh</button>
           <button class="chip" data-cat="jpn">🇯🇵 Tiếng Nhật</button>
           <button class="chip" data-cat="kor">🇰🇷 Tiếng Hàn</button>
+          <button class="chip" data-cat="biz">📊 Quản trị – Kinh doanh</button>
           <button class="chip" data-cat="mkt">📣 Marketing</button>
           <button class="chip" data-cat="fin">🏦 Tài chính – Ngân hàng</button>
+          <button class="chip" data-cat="read">📖 Đọc online</button>
         </div>
 
         <p class="result-count muted" id="bookCount"></p>
@@ -209,7 +211,17 @@
               <label class="field"><span>Mã môn</span><input name="subject_code" placeholder="VD: MAE101" /></label>
               <label class="field"><span>Vị trí kệ</span><input name="shelf_location" placeholder="VD: Kệ A1 - Tầng 1" /></label>
               <label class="field"><span>Số lượng *</span><input name="total_qty" type="number" min="1" value="1" required /></label>
-              <label class="field span-2"><span>Link tài liệu điện tử</span><input name="book_link" type="url" placeholder="https://..." /></label>
+              <label class="field span-2"><span>Link đọc online / tài liệu điện tử</span>
+                <div class="link-input">
+                  <input name="book_link" type="url" placeholder="https://..." />
+                  <select name="read_access" aria-label="Loại link">
+                    <option value="">Loại link…</option>
+                    <option value="full">Đọc toàn bộ</option>
+                    <option value="partial">Đọc thử</option>
+                    <option value="none">Chỉ thông tin</option>
+                  </select>
+                </div>
+              </label>
               <label class="field span-2"><span>Link ảnh bìa</span>
                 <div class="cover-input">
                   <div class="cover cover-preview" data-preview-for="addBookForm">?</div>
@@ -301,7 +313,17 @@
         <label class="field"><span>Mã môn</span><input name="subject_code" /></label>
         <label class="field"><span>Vị trí kệ</span><input name="shelf_location" /></label>
         <label class="field"><span>Tổng số lượng *</span><input name="total_qty" type="number" min="1" required /></label>
-        <label class="field span-2"><span>Link tài liệu điện tử</span><input name="book_link" type="url" placeholder="https://..." /></label>
+        <label class="field span-2"><span>Link đọc online / tài liệu điện tử</span>
+          <div class="link-input">
+            <input name="book_link" type="url" placeholder="https://..." />
+            <select name="read_access" aria-label="Loại link">
+              <option value="">Loại link…</option>
+              <option value="full">Đọc toàn bộ</option>
+              <option value="partial">Đọc thử</option>
+              <option value="none">Chỉ thông tin</option>
+            </select>
+          </div>
+        </label>
         <label class="field span-2"><span>Link ảnh bìa</span>
           <div class="cover-input">
             <div class="cover cover-preview" data-preview-for="editBookForm">?</div>
@@ -394,6 +416,6 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

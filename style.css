@@ -544,3 +544,25 @@ input:focus { border-color: var(--navy-600); box-shadow: 0 0 0 4px rgba(42, 85, 
 .qf-text { display: flex; flex-direction: column; min-width: 0; }
 .qf-text strong { font-size: 14px; overflow-wrap: anywhere; }
 .cover-cand-noimg { width: 100%; aspect-ratio: 2 / 3; border-radius: 4px; background: #eceae4; display: grid; place-items: center; text-align: center; font-size: 11px; color: var(--text-2); padding: 6px; }
+
+/* Nút đọc online trên thẻ sách */
+.tag.read { text-decoration: none; border-color: transparent; background: var(--orange-50); color: var(--orange-600); }
+.tag.read:hover { text-decoration: underline; }
+.tag.read.full { background: var(--ok-bg); color: var(--ok); }
+.tag.read.partial { background: var(--info-bg); color: var(--info); }
+.tag.read.none { background: #eeece7; color: var(--text-2); }
+
+/* Ô link + chọn loại link */
+.link-input { display: flex; gap: 8px; }
+.link-input input { flex: 1; min-width: 0; }
+.link-input select {
+  font: inherit; font-size: 14px; color: var(--text); padding: 0 10px; min-width: 130px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface);
+}
+@media (max-width: 520px) {
+  .link-input { flex-direction: column; }
+  .link-input select { height: 44px; }
+}
+.qf-access { font-size: 12px; font-weight: 600; color: var(--text-3); }
+.qf-access.full { color: var(--ok); }
+.qf-access.partial { color: var(--info); }

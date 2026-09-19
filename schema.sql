@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS books (
   author VARCHAR(255),
   subject_code VARCHAR(50),
   book_link VARCHAR(500),
+  cover_url VARCHAR(500),
+  read_access VARCHAR(10),
   shelf_location VARCHAR(100),
   total_qty INT NOT NULL DEFAULT 1,
   available_qty INT NOT NULL DEFAULT 1

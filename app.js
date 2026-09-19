@@ -87,6 +87,16 @@ function initial(text) {
   return esc(s.charAt(0).toUpperCase());
 }
 
+// Nút đọc online trên thẻ sách, ghi rõ đọc được bao nhiêu
+const ACCESS_LABEL = { full: "📖 Đọc toàn bộ", partial: "📖 Đọc thử", none: "ℹ️ Thông tin sách" };
+function readButton(b) {
+  const link = safeUrl(b.book_link);
+  if (!link) return "";
+  const label = ACCESS_LABEL[b.read_access] || "📖 Đọc online";
+  return `<a class="tag read ${esc(b.read_access || "unknown")}" href="${esc(link)}" target="_blank" rel="noopener">${label} ↗</a>`;
+}
+const ACCESS_RANK = { full: 3, partial: 2, none: 1 };
+
 // Chỉ dùng link http(s) — chặn link độc hại kiểu "javascript:..."
 function safeUrl(url) {
   const u = String(url || "").trim();
@@ -220,6 +230,7 @@ const CATEGORY_PREFIX = {
   eng: ["ENG", "ENW"],
   jpn: ["JPN", "JPD"],
   kor: ["KOR"],
+  biz: ["BUS", "MGT", "ENT", "ETH", "LAW"],
   mkt: ["MKT"],
   fin: ["FIN", "BNK", "ACC", "ECO"],
 };
@@ -252,6 +263,7 @@ async function loadBooks() {
 }
 
 function filteredBooks() {
+  if (bookCategory === "read") return allBooks.filter((b) => safeUrl(b.book_link) && ["full", "partial"].includes(b.read_access));
   return bookCategory ? allBooks.filter((b) => categoryOf(b) === bookCategory) : allBooks;
 }
 
@@ -316,7 +328,7 @@ function renderBook(b) {
         <div class="chips">
           ${b.subject_code ? `<span class="tag subject">${esc(b.subject_code)}</span>` : ""}
           ${b.shelf_location ? `<span class="tag">📍 ${esc(b.shelf_location)}</span>` : ""}
-          ${safeUrl(b.book_link) ? `<a class="tag link" href="${esc(safeUrl(b.book_link))}" target="_blank" rel="noopener">Bản điện tử ↗</a>` : ""}
+          ${readButton(b)}
         </div>
         ${isAdmin
           ? `<div class="book-admin">
@@ -462,6 +474,7 @@ function openEditBook(id) {
   f.shelf_location.value = b.shelf_location || "";
   f.total_qty.value = b.total_qty;
   f.book_link.value = b.book_link || "";
+  f.read_access.value = b.read_access || "";
   f.cover_url.value = b.cover_url || "";
   updateCoverPreview(f);
   const borrowed = Number(b.total_qty) - Number(b.available_qty);
@@ -487,6 +500,7 @@ document.getElementById("editBookForm").addEventListener("submit", async (e) => 
       shelf_location: f.shelf_location.value,
       total_qty: Number(f.total_qty.value),
       book_link: f.book_link.value,
+      read_access: f.read_access.value,
       cover_url: f.cover_url.value,
     });
     if (!ok) {
@@ -721,6 +735,7 @@ bindForm("addBookForm", "api/books.php", (f) => ({
   author: f.author.value,
   subject_code: f.subject_code.value,
   book_link: f.book_link.value,
+  read_access: f.read_access.value,
   cover_url: f.cover_url.value,
   shelf_location: f.shelf_location.value,
   total_qty: Number(f.total_qty.value),
@@ -926,20 +941,30 @@ function firstAuthor(author) {
 // Tìm trên Google Books. Trả về danh sách {title, authors, year, cover, link}
 async function searchGoogleBooks(q, max = 5) {
   const url = "https://www.googleapis.com/books/v1/volumes?printType=books&maxResults=" + max
-    + "&fields=items(id,volumeInfo(title,subtitle,authors,publishedDate,imageLinks))&q=" + encodeURIComponent(q);
+    + "&fields=items(id,volumeInfo(title,subtitle,authors,publishedDate,imageLinks),accessInfo(viewability,webReaderLink))&q="
+    + encodeURIComponent(q);
   const res = await fetch(url);
   if (!res.ok) throw new Error("google " + res.status);
   const data = await res.json();
   return (data.items || []).map((it) => {
     const v = it.volumeInfo || {};
     const img = v.imageLinks && (v.imageLinks.thumbnail || v.imageLinks.smallThumbnail);
+    const view = (it.accessInfo || {}).viewability;
+    const access = view === "ALL_PAGES" ? "full" : view === "PARTIAL" ? "partial" : "none";
+    const id = encodeURIComponent(it.id || "");
+    // Đọc được -> mở thẳng trang đọc; không đọc được -> trang thông tin sách
+    const reader = String((it.accessInfo || {}).webReaderLink || "").replace(/^http:/, "https:");
+    const link = !id ? "" : access === "none"
+      ? `https://books.google.com/books?id=${id}`
+      : safeUrl(reader) || `https://books.google.com/books?id=${id}&printsec=frontcover`;
     return {
       title: v.title || "",
       fullTitle: [v.title, v.subtitle].filter(Boolean).join(" "),
       authors: (v.authors || []).join(", "),
       year: (v.publishedDate || "").slice(0, 4),
       cover: img ? img.replace(/^http:/, "https:").replace("&edge=curl", "") : "",
-      link: it.id ? `https://books.google.com/books?id=${encodeURIComponent(it.id)}` : "",
+      link,
+      access,
       source: "Google Books",
     };
   });
@@ -947,7 +972,7 @@ async function searchGoogleBooks(q, max = 5) {
 
 // Tìm trên Open Library (dự phòng khi Google không có / bị giới hạn)
 async function searchOpenLibrary(params, max = 5) {
-  const p = new URLSearchParams({ ...params, limit: String(max), fields: "key,title,author_name,first_publish_year,cover_i" });
+  const p = new URLSearchParams({ ...params, limit: String(max), fields: "key,title,author_name,first_publish_year,cover_i,ebook_access" });
   const res = await fetch("https://openlibrary.org/search.json?" + p.toString());
   if (!res.ok) throw new Error("openlibrary " + res.status);
   const data = await res.json();
@@ -958,26 +983,45 @@ async function searchOpenLibrary(params, max = 5) {
     year: d.first_publish_year ? String(d.first_publish_year) : "",
     cover: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : "",
     link: d.key ? `https://openlibrary.org${d.key}` : "",
+    access: d.ebook_access === "public" ? "full" : "none",   // "public" = sách tự do, đọc miễn phí toàn bộ
     source: "Open Library",
   }));
 }
 
-// Tìm ảnh bìa + link cho 1 cuốn đã có trong thư viện (tên phải khớp)
+// Tìm ảnh bìa + link đọc tốt nhất cho 1 cuốn đã có trong thư viện (tên phải khớp)
 async function findCover(b) {
   const author = firstAuthor(b.author);
-  const pick = (list) => list.find((x) => (x.cover || x.link) && titleMatches(b.title, x.fullTitle));
-  let best = null;
+  const matches = [];
   try {
-    best = pick(await searchGoogleBooks(`intitle:${b.title}` + (author ? ` inauthor:${author}` : "")));
+    matches.push(...(await searchGoogleBooks(`intitle:${b.title}` + (author ? ` inauthor:${author}` : ""), 10)));
   } catch (e) { /* thử nguồn khác */ }
-  if (!best || !best.cover) {
+  const best = () => {
+    const ok = matches.filter((x) => titleMatches(b.title, x.fullTitle));
+    const cover = ok.find((x) => x.cover);
+    // Ưu tiên bản đọc được nhiều nhất: đọc toàn bộ > đọc thử > chỉ thông tin
+    const read = ok.filter((x) => x.link).sort((a, c) => ACCESS_RANK[c.access] - ACCESS_RANK[a.access])[0];
+    return { cover, read };
+  };
+  let r = best();
+  // Google không có ảnh hoặc không cho đọc -> thử thêm Open Library
+  if (!r.cover || !r.read || r.read.access !== "full") {
     try {
-      const ol = pick(await searchOpenLibrary(author ? { title: b.title, author } : { title: b.title }));
-      if (ol && (!best || ol.cover)) best = best ? { ...best, cover: ol.cover } : ol;
+      matches.push(...(await searchOpenLibrary(author ? { title: b.title, author } : { title: b.title }, 5)));
+      r = best();
     } catch (e) { /* bỏ qua */ }
   }
-  if (!best) return null;
-  return { url: best.cover, link: best.link, source: best.source, found: best.title };
+  if (!r.cover && !r.read) return null;
+  return {
+    url: r.cover ? r.cover.cover : "",
+    link: r.read ? r.read.link : "",
+    access: r.read ? r.read.access : "",
+    source: (r.read || r.cover).source,
+  };
+}
+
+// Link đang có là do web tự tìm (được phép thay bằng link tốt hơn)?
+function isAutoLink(url) {
+  return !url || /^https:\/\/(books\.google\.com|play\.google\.com|openlibrary\.org)\//.test(url);
 }
 
 let coverCandidates = [];
@@ -992,7 +1036,9 @@ document.getElementById("coverFindBtn").addEventListener("click", async (e) => {
   results.innerHTML = "";
   coverCandidates = [];
 
-  const books = (await getJSON("api/books.php")).filter((b) => !safeUrl(b.cover_url) || !safeUrl(b.book_link));
+  const books = (await getJSON("api/books.php")).filter(
+    (b) => !safeUrl(b.cover_url) || (isAutoLink(b.book_link) && !b.read_access)
+  );
   if (books.length === 0) {
     status.textContent = "· Tất cả sách đã có ảnh bìa và link";
     btn.disabled = false;
@@ -1010,10 +1056,13 @@ document.getElementById("coverFindBtn").addEventListener("click", async (e) => {
       if (!c) continue;
       // Chỉ lấy phần sách đang thiếu
       const addCover = !safeUrl(b.cover_url) && c.url ? c.url : "";
-      const addLink = !safeUrl(b.book_link) && c.link ? c.link : "";
+      const canReplace = isAutoLink(b.book_link) && c.link && c.link !== b.book_link
+        && (ACCESS_RANK[c.access] || 0) >= (ACCESS_RANK[b.read_access] || 0);
+      const addLink = canReplace ? c.link : "";
       if (!addCover && !addLink) continue;
-      coverCandidates.push({ book: b, url: addCover, link: addLink, source: c.source });
-      const what = addCover && addLink ? "Ảnh + link" : addCover ? "Ảnh bìa" : "Link sách";
+      coverCandidates.push({ book: b, url: addCover, link: addLink, access: c.access, source: c.source });
+      const linkWhat = { full: "Đọc toàn bộ", partial: "Đọc thử", none: "Link thông tin" }[c.access] || "Link";
+      const what = addCover && addLink ? `Ảnh + ${linkWhat}` : addCover ? "Ảnh bìa" : linkWhat;
       const shown = addCover || safeUrl(b.cover_url);
       results.insertAdjacentHTML("beforeend", `
         <label class="cover-cand" data-id="${Number(b.id)}">
@@ -1055,7 +1104,7 @@ document.getElementById("coverSaveBtn").addEventListener("click", async (e) => {
   await withLoading(e.currentTarget, async () => {
     let ok = 0;
     for (const c of chosen) {
-      const r = await sendJSON("PUT", "api/books.php", { id: Number(c.book.id), cover_url: c.url, book_link: c.link, only_cover: true });
+      const r = await sendJSON("PUT", "api/books.php", { id: Number(c.book.id), cover_url: c.url, book_link: c.link, read_access: c.access, only_cover: true });
       if (r.ok) ok++;
     }
     showToast(`Đã lưu ảnh bìa / link cho ${ok} cuốn sách`, "success");
@@ -1091,6 +1140,8 @@ async function quickFind() {
   if (items.length === 0) {
     try { items = await searchOpenLibrary(isIsbn ? { isbn } : { q }, 6); } catch (e) { /* bỏ qua */ }
   }
+  // Bản đọc được xếp lên trước
+  items.sort((a, c) => (ACCESS_RANK[c.access] || 0) - (ACCESS_RANK[a.access] || 0));
   quickFindItems = items;
 
   if (items.length === 0) {
@@ -1105,6 +1156,7 @@ async function quickFind() {
       <span class="qf-text">
         <strong>${esc(it.title)}</strong>
         <span class="muted small">${esc(it.authors || "Chưa rõ tác giả")}${it.year ? " · " + esc(it.year) : ""} · ${esc(it.source)}</span>
+        <span class="qf-access ${esc(it.access)}">${esc({ full: "📖 Đọc toàn bộ", partial: "📖 Đọc thử", none: "Chỉ có thông tin" }[it.access] || "")}</span>
       </span>
     </button>`).join("");
 }
@@ -1122,8 +1174,9 @@ document.getElementById("quickFindResults").addEventListener("click", (e) => {
   f.author.value = it.authors;
   f.cover_url.value = safeUrl(it.cover);
   f.book_link.value = safeUrl(it.link);
+  f.read_access.value = it.link ? it.access || "" : "";
   updateCoverPreview(f);
   document.getElementById("quickFindResults").innerHTML =
-    `<p class="notice-text">✅ Đã điền sẵn tên sách, tác giả, ảnh bìa và link. Nhập thêm mã môn, vị trí kệ, số lượng rồi bấm “Thêm sách”.</p>`;
+    `<p class="notice-text">✅ Đã điền sẵn tên sách, tác giả, ảnh bìa và link đọc. Nhập thêm mã môn, vị trí kệ, số lượng rồi bấm “Thêm sách”.</p>`;
   f.subject_code.focus();
 });

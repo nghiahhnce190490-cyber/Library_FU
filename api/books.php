@@ -110,12 +110,20 @@ if ($method === 'PUT') {
     $data = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = intval($data['id'] ?? 0);
 
-    // Chỉ cập nhật ảnh bìa: PUT {id, cover_url, only_cover: true} (dùng cho nút "Tự tìm ảnh bìa")
+    // Chỉ cập nhật ảnh bìa / link sách: PUT {id, cover_url?, book_link?, only_cover: true}
+    // (dùng cho nút "Tự tìm ảnh bìa & link sách"). Không ghi đè cái đã có sẵn.
     if (!empty($data['only_cover'])) {
         $cover_url = clean_url($data['cover_url'] ?? '', 'Link ảnh bìa');
+        $book_link = clean_url($data['book_link'] ?? '', 'Link sách');
         ensure_cover_column($pdo);
-        $stmt = $pdo->prepare("UPDATE books SET cover_url = ? WHERE id = ?");
-        $stmt->execute([$cover_url !== '' ? $cover_url : null, $id]);
+        if ($cover_url !== '') {
+            $pdo->prepare("UPDATE books SET cover_url = ? WHERE id = ? AND (cover_url IS NULL OR cover_url = '')")
+                ->execute([$cover_url, $id]);
+        }
+        if ($book_link !== '') {
+            $pdo->prepare("UPDATE books SET book_link = ? WHERE id = ? AND (book_link IS NULL OR book_link = '')")
+                ->execute([$book_link, $id]);
+        }
         echo json_encode(["success" => true]);
         exit;
     }

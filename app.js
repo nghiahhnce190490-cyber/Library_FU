@@ -87,6 +87,23 @@ function initial(text) {
   return esc(s.charAt(0).toUpperCase());
 }
 
+// Chỉ dùng link http(s) — chặn link độc hại kiểu "javascript:..."
+function safeUrl(url) {
+  const u = String(url || "").trim();
+  return /^https?:\/\//i.test(u) ? u : "";
+}
+
+// Bìa sách: có link ảnh thì hiện ảnh, không có (hoặc ảnh lỗi) thì hiện bìa màu tự tạo
+function coverHtml(title, url, extraCls = "") {
+  const src = safeUrl(url);
+  return `<div class="cover ${extraCls} ${src ? "has-img" : ""}" style="--h:${hueOf(title)}">${initial(title)}${
+    src
+      ? `<img src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer"
+             onerror="this.parentNode.classList.remove('has-img'); this.remove();">`
+      : ""
+  }</div>`;
+}
+
 function formatDate(iso) {
   if (!iso) return "—";
   const [y, m, d] = iso.split("-");
@@ -198,6 +215,25 @@ document.getElementById("searchForm").addEventListener("submit", (e) => {
   loadBooks();
 });
 
+// Nhóm ngành theo tiền tố mã môn (VD: KOR105 -> Tiếng Hàn)
+const CATEGORY_PREFIX = {
+  eng: ["ENG", "ENW"],
+  jpn: ["JPN", "JPD"],
+  kor: ["KOR"],
+  mkt: ["MKT"],
+  fin: ["FIN", "BNK", "ACC", "ECO"],
+};
+function categoryOf(b) {
+  const prefix = String(b.subject_code || "").toUpperCase().replace(/[^A-Z].*$/, "");
+  for (const [cat, list] of Object.entries(CATEGORY_PREFIX)) if (list.includes(prefix)) return cat;
+  return "it";
+}
+
+const PAGE_SIZE = 12;       // mỗi lần hiện 12 cuốn, bấm "Xem thêm" để hiện tiếp
+let allBooks = [];
+let bookCategory = "";
+let booksShown = 0;
+
 async function loadBooks() {
   const search = document.getElementById("searchInput").value.trim();
   const subject = document.getElementById("subjectInput").value.trim();
@@ -206,24 +242,63 @@ async function loadBooks() {
   if (subject) params.set("subject", subject);
 
   const list = document.getElementById("bookList");
-  const count = document.getElementById("bookCount");
+  document.getElementById("bookCount").textContent = "";
+  document.getElementById("loadMoreWrap").hidden = true;
   list.innerHTML = skeleton(3);
-  count.textContent = "";
 
-  const books = await getJSON("api/books.php?" + params.toString());
+  allBooks = await getJSON("api/books.php?" + params.toString());
+  allBooks.forEach((b) => (booksById[b.id] = b));
+  renderBookList();
+}
 
+function filteredBooks() {
+  return bookCategory ? allBooks.filter((b) => categoryOf(b) === bookCategory) : allBooks;
+}
+
+function renderBookList() {
+  const search = document.getElementById("searchInput").value.trim();
+  const subject = document.getElementById("subjectInput").value.trim();
+  const list = document.getElementById("bookList");
+  const count = document.getElementById("bookCount");
+  const books = filteredBooks();
+
+  booksShown = Math.min(PAGE_SIZE, books.length);
   if (books.length === 0) {
     count.textContent = "";
-    list.innerHTML = search || subject
+    document.getElementById("loadMoreWrap").hidden = true;
+    list.innerHTML = search || subject || bookCategory
       ? emptyState("🔍", "Không tìm thấy sách phù hợp", "Thử từ khóa khác hoặc bỏ bớt điều kiện lọc.")
       : emptyState("📚", "Thư viện chưa có sách", isAdmin ? "Vào tab Quản lý để thêm sách đầu tiên." : "Hãy quay lại sau nhé.");
     return;
   }
 
-  count.textContent = `${books.length} đầu sách${search || subject ? " phù hợp" : ""}`;
-  books.forEach((b) => (booksById[b.id] = b));
-  list.innerHTML = books.map(renderBook).join("");
+  count.textContent = `${books.length} đầu sách${search || subject || bookCategory ? " phù hợp" : ""}`;
+  list.innerHTML = books.slice(0, booksShown).map(renderBook).join("");
+  updateLoadMore(books.length);
 }
+
+function updateLoadMore(total) {
+  const left = total - booksShown;
+  document.getElementById("loadMoreWrap").hidden = left <= 0;
+  document.getElementById("loadMoreBtn").textContent = `Xem thêm (${left} cuốn)`;
+}
+
+document.getElementById("loadMoreBtn").addEventListener("click", () => {
+  const books = filteredBooks();
+  const next = books.slice(booksShown, booksShown + PAGE_SIZE);
+  document.getElementById("bookList").insertAdjacentHTML("beforeend", next.map(renderBook).join(""));
+  booksShown += next.length;
+  updateLoadMore(books.length);
+});
+
+document.querySelectorAll("#catChips .chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    document.querySelectorAll("#catChips .chip").forEach((c) => c.classList.remove("active"));
+    chip.classList.add("active");
+    bookCategory = chip.dataset.cat;
+    renderBookList();
+  });
+});
 
 function renderBook(b) {
   const avail = Number(b.available_qty);
@@ -234,14 +309,14 @@ function renderBook(b) {
 
   return `
     <article class="book">
-      <div class="cover" style="--h:${hueOf(b.title)}">${initial(b.title)}</div>
+      ${coverHtml(b.title, b.cover_url)}
       <div class="book-body">
         <h3>${esc(b.title)}</h3>
         <div class="author">${b.author ? esc(b.author) : "Chưa rõ tác giả"}</div>
         <div class="chips">
           ${b.subject_code ? `<span class="tag subject">${esc(b.subject_code)}</span>` : ""}
           ${b.shelf_location ? `<span class="tag">📍 ${esc(b.shelf_location)}</span>` : ""}
-          ${b.book_link ? `<a class="tag link" href="${esc(b.book_link)}" target="_blank" rel="noopener">Bản điện tử ↗</a>` : ""}
+          ${safeUrl(b.book_link) ? `<a class="tag link" href="${esc(safeUrl(b.book_link))}" target="_blank" rel="noopener">Bản điện tử ↗</a>` : ""}
         </div>
         ${isAdmin
           ? `<div class="book-admin">
@@ -297,6 +372,7 @@ function dueInfo(l) {
   if (d <= 3) return { cls: "warn", text: `Còn ${d} ngày` };
   return { cls: "ok", text: `Còn ${d} ngày` };
 }
+
 function statusBadge(status) {
   if (status === "overdue") return `<span class="badge danger">Quá hạn</span>`;
   if (status === "returned") return `<span class="badge muted">Đã trả</span>`;
@@ -308,7 +384,7 @@ function renderLoan(l, asAdmin) {
   const overdue = l.status !== "returned" && daysUntil(l.due_date) < 0;
   return `
     <div class="loan ${overdue ? "overdue" : ""}">
-      <div class="cover sm" style="--h:${hueOf(l.book_title)}">${initial(l.book_title)}</div>
+      ${coverHtml(l.book_title, booksById[l.book_id]?.cover_url, "sm")}
       <div class="loan-main">
         <div class="loan-title"><strong>${esc(l.book_title)}</strong> ${statusBadge(overdue ? "overdue" : l.status)}</div>
         <div class="loan-meta">
@@ -386,6 +462,8 @@ function openEditBook(id) {
   f.shelf_location.value = b.shelf_location || "";
   f.total_qty.value = b.total_qty;
   f.book_link.value = b.book_link || "";
+  f.cover_url.value = b.cover_url || "";
+  updateCoverPreview(f);
   const borrowed = Number(b.total_qty) - Number(b.available_qty);
   f.total_qty.min = Math.max(1, borrowed);
   document.getElementById("editBookHint").textContent = borrowed > 0
@@ -409,6 +487,7 @@ document.getElementById("editBookForm").addEventListener("submit", async (e) => 
       shelf_location: f.shelf_location.value,
       total_qty: Number(f.total_qty.value),
       book_link: f.book_link.value,
+      cover_url: f.cover_url.value,
     });
     if (!ok) {
       showToast(data.error || "Sửa sách thất bại", "error");
@@ -642,9 +721,26 @@ bindForm("addBookForm", "api/books.php", (f) => ({
   author: f.author.value,
   subject_code: f.subject_code.value,
   book_link: f.book_link.value,
+  cover_url: f.cover_url.value,
   shelf_location: f.shelf_location.value,
   total_qty: Number(f.total_qty.value),
-}), "Đã thêm sách mới", loadAdmin);
+}), "Đã thêm sách mới", () => { loadAdmin(); updateCoverPreview(document.getElementById("addBookForm")); });
+
+// Xem trước ảnh bìa khi thủ thư dán link
+function updateCoverPreview(form) {
+  const formId = form.getAttribute("id"); // (form.id bị ô ẩn name="id" che mất)
+  const box = document.querySelector(`[data-preview-for="${formId}"]`);
+  if (!box) return;
+  const title = form.title.value || "?";
+  box.outerHTML = coverHtml(title, form.cover_url.value, "cover-preview").replace(
+    'class="cover', `data-preview-for="${formId}" class="cover`
+  );
+}
+["addBookForm", "editBookForm"].forEach((id) => {
+  const f = document.getElementById(id);
+  f.cover_url.addEventListener("input", () => updateCoverPreview(f));
+  f.title.addEventListener("input", () => updateCoverPreview(f));
+});
 
 bindForm("addMemberForm", "api/members.php", (f) => ({
   student_code: f.student_code.value,
@@ -799,4 +895,143 @@ document.getElementById("changePwForm").addEventListener("submit", async (e) => 
     closeChangePw();
     showToast(data.message || "Đã đổi mật khẩu", "success");
   });
+});
+
+// =========================================================
+// THỦ THƯ: TỰ TÌM ẢNH BÌA (Google Books / Open Library)
+// Chạy ngay trên trình duyệt của thủ thư, chỉ lưu những ảnh được chọn.
+// =========================================================
+function normTitle(t) {
+  return String(t || "")
+    .normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d")
+    .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+// Tên tìm được phải khớp phần lớn các từ trong tên sách của mình
+function titleMatches(mine, found) {
+  const a = normTitle(mine).split(" ").filter((w) => w.length > 1);
+  const b = new Set(normTitle(found).split(" "));
+  if (a.length === 0) return false;
+  const hit = a.filter((w) => b.has(w)).length;
+  return hit / a.length >= 0.6;
+}
+function firstAuthor(author) {
+  const a = String(author || "").split(/,|&| và /)[0].trim();
+  return /nhiều tác giả|chưa rõ/i.test(a) ? "" : a;
+}
+
+async function coverFromGoogle(b) {
+  const author = firstAuthor(b.author);
+  const q = `intitle:${b.title}` + (author ? ` inauthor:${author}` : "");
+  const url = "https://www.googleapis.com/books/v1/volumes?maxResults=5&printType=books"
+    + "&fields=items(volumeInfo(title,subtitle,imageLinks))&q=" + encodeURIComponent(q);
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const data = await res.json();
+  for (const it of data.items || []) {
+    const v = it.volumeInfo || {};
+    const img = v.imageLinks && (v.imageLinks.thumbnail || v.imageLinks.smallThumbnail);
+    const fullTitle = [v.title, v.subtitle].filter(Boolean).join(" ");
+    if (img && titleMatches(b.title, fullTitle)) {
+      return { url: img.replace(/^http:/, "https:").replace("&edge=curl", ""), source: "Google Books", found: v.title };
+    }
+  }
+  return null;
+}
+
+async function coverFromOpenLibrary(b) {
+  const params = new URLSearchParams({ title: b.title, limit: "5", fields: "title,cover_i" });
+  const author = firstAuthor(b.author);
+  if (author) params.set("author", author);
+  const res = await fetch("https://openlibrary.org/search.json?" + params.toString());
+  if (!res.ok) return null;
+  const data = await res.json();
+  for (const d of data.docs || []) {
+    if (d.cover_i && titleMatches(b.title, d.title)) {
+      return { url: `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg`, source: "Open Library", found: d.title };
+    }
+  }
+  return null;
+}
+
+async function findCover(b) {
+  try { const g = await coverFromGoogle(b); if (g) return g; } catch (e) { /* thử nguồn khác */ }
+  try { return await coverFromOpenLibrary(b); } catch (e) { return null; }
+}
+
+let coverCandidates = [];
+
+document.getElementById("coverFindBtn").addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  const status = document.getElementById("coverStatus");
+  const results = document.getElementById("coverResults");
+  const actions = document.getElementById("coverActions");
+  btn.disabled = true;
+  actions.hidden = true;
+  results.innerHTML = "";
+  coverCandidates = [];
+
+  const books = (await getJSON("api/books.php")).filter((b) => !safeUrl(b.cover_url));
+  if (books.length === 0) {
+    status.textContent = "· Tất cả sách đã có ảnh bìa";
+    btn.disabled = false;
+    return;
+  }
+
+  let done = 0;
+  const queue = books.slice();
+  async function worker() {
+    while (queue.length) {
+      const b = queue.shift();
+      const c = await findCover(b);
+      done++;
+      status.textContent = `· Đang tìm ${done}/${books.length}…`;
+      if (c) {
+        coverCandidates.push({ book: b, ...c });
+        results.insertAdjacentHTML("beforeend", `
+          <label class="cover-cand" data-id="${Number(b.id)}">
+            <input type="checkbox" checked />
+            <img src="${esc(c.url)}" alt="" loading="lazy" referrerpolicy="no-referrer"
+                 onerror="this.closest('.cover-cand').remove();">
+            <span class="cover-cand-title">${esc(b.title)}</span>
+            <span class="muted small">${esc(c.source)}</span>
+          </label>`);
+      }
+    }
+  }
+  await Promise.all([worker(), worker(), worker()]); // tìm 3 cuốn cùng lúc
+
+  const found = results.querySelectorAll(".cover-cand").length;
+  status.textContent = `· Tìm được ${found}/${books.length} sách. Sách không tìm thấy vẫn dùng bìa màu.`;
+  actions.hidden = found === 0;
+  btn.disabled = false;
+});
+
+document.getElementById("coverToggleAll").addEventListener("click", (e) => {
+  const boxes = [...document.querySelectorAll("#coverResults input[type=checkbox]")];
+  const anyChecked = boxes.some((x) => x.checked);
+  boxes.forEach((x) => (x.checked = !anyChecked));
+  e.currentTarget.textContent = anyChecked ? "Chọn tất cả" : "Bỏ chọn tất cả";
+});
+
+document.getElementById("coverSaveBtn").addEventListener("click", async (e) => {
+  const chosen = [...document.querySelectorAll("#coverResults .cover-cand")]
+    .filter((el) => el.querySelector("input").checked)
+    .map((el) => coverCandidates.find((c) => String(c.book.id) === el.dataset.id))
+    .filter(Boolean);
+  if (chosen.length === 0) {
+    showToast("Chưa chọn ảnh nào", "error");
+    return;
+  }
+  await withLoading(e.currentTarget, async () => {
+    let ok = 0;
+    for (const c of chosen) {
+      const r = await sendJSON("PUT", "api/books.php", { id: Number(c.book.id), cover_url: c.url, only_cover: true });
+      if (r.ok) ok++;
+    }
+    showToast(`Đã lưu ảnh bìa cho ${ok} cuốn sách`, "success");
+  });
+  document.getElementById("coverResults").innerHTML = "";
+  document.getElementById("coverActions").hidden = true;
+  document.getElementById("coverStatus").textContent = "";
+  loadBooks();
 });

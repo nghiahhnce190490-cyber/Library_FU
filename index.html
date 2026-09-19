@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="style.css?v=7" />
+<link rel="stylesheet" href="style.css?v=8" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f26f21' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5a2.5 2.5 0 0 0 0 5H19'/%3E%3C/svg%3E" />
 </head>
 <body>
@@ -136,8 +136,21 @@
           <button type="submit" class="btn btn-primary">Tìm kiếm</button>
         </form>
 
+        <div class="chips cat-chips" id="catChips">
+          <button class="chip active" data-cat="">Tất cả</button>
+          <button class="chip" data-cat="it">💻 CNTT</button>
+          <button class="chip" data-cat="eng">🇬🇧 Tiếng Anh</button>
+          <button class="chip" data-cat="jpn">🇯🇵 Tiếng Nhật</button>
+          <button class="chip" data-cat="kor">🇰🇷 Tiếng Hàn</button>
+          <button class="chip" data-cat="mkt">📣 Marketing</button>
+          <button class="chip" data-cat="fin">🏦 Tài chính – Ngân hàng</button>
+        </div>
+
         <p class="result-count muted" id="bookCount"></p>
         <div id="bookList" class="book-grid"></div>
+        <div class="load-more" id="loadMoreWrap" hidden>
+          <button type="button" class="btn btn-outline" id="loadMoreBtn">Xem thêm</button>
+        </div>
       </section>
 
       <!-- ---------- TAB: SÁCH CỦA TÔI ---------- -->
@@ -163,6 +176,22 @@
 
         <div id="adminStats" class="stats"></div>
 
+        <div class="panel panel-gap" id="coverPanel">
+          <div class="panel-head panel-head-wrap">
+            <div class="panel-head-title"><span class="panel-icon">🖼️</span><h3>Ảnh bìa sách</h3><span class="muted small" id="coverStatus"></span></div>
+            <div class="toolbar">
+              <button type="button" class="btn btn-primary btn-sm" id="coverFindBtn">🔍 Tự tìm ảnh bìa</button>
+            </div>
+          </div>
+          <p class="muted small">Web sẽ tìm ảnh bìa trên Google Books / Open Library theo tên sách và tác giả cho những sách chưa có ảnh.
+            Kiểm tra lại rồi bỏ chọn ảnh nào sai trước khi lưu.</p>
+          <div id="coverResults" class="cover-results"></div>
+          <div class="cover-actions" id="coverActions" hidden>
+            <button type="button" class="btn btn-outline btn-sm" id="coverToggleAll">Bỏ chọn tất cả</button>
+            <button type="button" class="btn btn-primary btn-sm" id="coverSaveBtn">Lưu ảnh đã chọn</button>
+          </div>
+        </div>
+
         <div class="admin-grid">
           <div class="panel">
             <div class="panel-head"><span class="panel-icon">📚</span><h3>Thêm sách mới</h3></div>
@@ -173,6 +202,12 @@
               <label class="field"><span>Vị trí kệ</span><input name="shelf_location" placeholder="VD: Kệ A1 - Tầng 1" /></label>
               <label class="field"><span>Số lượng *</span><input name="total_qty" type="number" min="1" value="1" required /></label>
               <label class="field span-2"><span>Link tài liệu điện tử</span><input name="book_link" type="url" placeholder="https://..." /></label>
+              <label class="field span-2"><span>Link ảnh bìa</span>
+                <div class="cover-input">
+                  <div class="cover cover-preview" data-preview-for="addBookForm">?</div>
+                  <input name="cover_url" type="url" placeholder="Dán link ảnh (https://...)" />
+                </div>
+              </label>
               <button type="submit" class="btn btn-primary span-2">Thêm sách</button>
             </form>
           </div>
@@ -259,6 +294,12 @@
         <label class="field"><span>Vị trí kệ</span><input name="shelf_location" /></label>
         <label class="field"><span>Tổng số lượng *</span><input name="total_qty" type="number" min="1" required /></label>
         <label class="field span-2"><span>Link tài liệu điện tử</span><input name="book_link" type="url" placeholder="https://..." /></label>
+        <label class="field span-2"><span>Link ảnh bìa</span>
+          <div class="cover-input">
+            <div class="cover cover-preview" data-preview-for="editBookForm">?</div>
+            <input name="cover_url" type="url" placeholder="https://... (để trống = bìa tự tạo)" />
+          </div>
+        </label>
       </div>
       <p class="muted small" id="editBookHint"></p>
       <div class="modal-actions">
@@ -345,6 +386,6 @@
 
   <div id="toast" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

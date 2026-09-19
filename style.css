@@ -438,11 +438,11 @@ input:focus { border-color: var(--navy-600); box-shadow: 0 0 0 4px rgba(42, 85, 
 .modal-close:hover { background: var(--surface-2); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
 
+.member-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 @media (max-width: 860px) {
   .member { grid-template-columns: 40px 1fr; }
   .member-stats, .member-actions { grid-column: 2; justify-content: flex-start; }
 }
-.member-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 
 /* Quên / đổi mật khẩu */
 .link { color: var(--navy-600); font-weight: 600; text-decoration: none; }
@@ -451,3 +451,80 @@ input:focus { border-color: var(--navy-600); box-shadow: 0 0 0 4px rgba(42, 85, 
 .modal-actions-split { justify-content: space-between; }
 .modal .stack { gap: 12px; }
 #forgotStep2 input[name=code] { letter-spacing: 8px; font-size: 20px; font-weight: 700; text-align: center; }
+
+/* =========================================================
+   ẢNH BÌA SÁCH
+   ========================================================= */
+.cover { overflow: hidden; }
+.cover img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  border-radius: inherit; background: var(--surface-2);
+}
+.cover.has-img { background: var(--surface-2); color: transparent; text-shadow: none; }
+.cover.has-img::after { display: none; }
+.cover-input { display: flex; align-items: center; gap: 12px; }
+.cover-input input { flex: 1; min-width: 0; }
+.cover.cover-preview { width: 46px; height: 64px; font-size: 18px; }
+.cover.cover-preview::after { left: 10px; bottom: 8px; }
+
+/* Lọc theo ngành + nút Xem thêm */
+.cat-chips { margin: 4px 0 12px; }
+.load-more { display: flex; justify-content: center; margin-top: 20px; }
+.load-more .btn { min-width: 220px; }
+
+/* =========================================================
+   ĐIỆN THOẠI — tinh chỉnh thêm
+   ========================================================= */
+@media (max-width: 860px) {
+  /* Ô nhập >= 16px để iPhone không tự phóng to khi bấm vào */
+  input, select, textarea { font-size: 16px; }
+
+  /* Lọc ngành: 1 hàng, vuốt ngang */
+  .cat-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 4px -16px 12px; padding: 0 16px; }
+  .cat-chips::-webkit-scrollbar { display: none; }
+  .cat-chips .chip { flex: none; }
+
+  /* Ô tìm kiếm trong danh sách sinh viên / phiếu mượn: dài hết chiều ngang */
+  .toolbar { width: 100%; }
+  .search-sm { min-width: 0; width: 100%; }
+
+  /* Nút thao tác của sinh viên: 3 nút đều nhau, dễ bấm */
+  .member-actions { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); }
+  .member-actions .btn { justify-content: center; padding: 9px 6px; }
+  .member-list { max-height: none; }
+
+  /* Sửa / Xóa sách: nút to hơn chút cho dễ bấm */
+  .book-admin .btn { padding: 7px 12px; }
+
+  /* Nút bấm nhỏ trong thẻ sách không bị chữ xuống dòng */
+  .book-foot .btn { white-space: nowrap; }
+
+  .load-more .btn { width: 100%; }
+
+  /* Hộp thoại: sát mép màn hình, cuộn được khi bàn phím bật lên */
+  .modal { width: calc(100% - 20px); max-height: calc(100dvh - 20px); overflow-y: auto; }
+  .modal-body { padding: 18px 16px; }
+  .modal-actions .btn { flex: 1; justify-content: center; }
+}
+
+/* Thông báo nổi không bị che bởi thanh home của iPhone */
+#toast { bottom: calc(24px + env(safe-area-inset-bottom)); }
+
+/* Tự tìm ảnh bìa */
+.cover-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; margin-top: 12px; }
+.cover-results:empty { display: none; }
+.cover-cand {
+  position: relative; display: flex; flex-direction: column; gap: 6px; padding: 8px; cursor: pointer; min-width: 0;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2);
+}
+.cover-cand img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 4px; background: #eee; }
+.cover-cand input { position: absolute; top: 12px; left: 12px; width: 20px; height: 20px; accent-color: var(--orange-600, #f26f21); }
+.cover-cand:has(input:not(:checked)) { opacity: .45; }
+.cover-cand-title { font-size: 12px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cover-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+@media (max-width: 520px) {
+  .cover-results { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .cover-cand { padding: 6px; }
+  .cover-cand .muted { font-size: 11px; }
+  .cover-actions .btn { flex: 1; justify-content: center; }
+}

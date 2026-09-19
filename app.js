@@ -187,6 +187,8 @@ async function refreshSession() {
   document.getElementById("userName").textContent = name;
   document.getElementById("userRole").textContent = isAdmin ? "Thủ thư" : "Học sinh · " + currentStudent.student_code;
   document.getElementById("userAvatar").textContent = String(name || "?").trim().charAt(0).toUpperCase();
+  updateGreeting(name);
+  updateLoanBadge();
 
   document.getElementById("adminBorrowBox").style.display = isAdmin ? "flex" : "none";
   document.querySelectorAll("#mainNav .tab-btn").forEach((btn) => {
@@ -383,6 +385,8 @@ async function checkout(bookId, btn) {
     }
     showToast(data.message, "success");
     celebrate(btn);
+    flyToMyBooks(btn);
+    updateLoanBadge();
   });
   loadBooks();
 }
@@ -1293,3 +1297,156 @@ window.addEventListener("scroll", () => {
   document.querySelector(".topbar")?.classList.toggle("scrolled", y > 8);
   toTop.classList.toggle("show", y > 600);
 }, { passive: true });
+
+// ---------- Hiệu ứng thêm: sinh động hơn ----------
+
+// Thanh tiến trình trên cùng mỗi khi web đang tải dữ liệu
+(() => {
+  const bar = document.getElementById("topProgress");
+  let pending = 0, hideTimer;
+  const origFetch = window.fetch.bind(window);
+  window.fetch = async (...args) => {
+    const url = String(args[0] && args[0].url || args[0]);
+    const mine = url.startsWith("api/") || url.includes(location.host + "/api/");
+    if (mine) {
+      pending++;
+      clearTimeout(hideTimer);
+      bar.className = "run";
+    }
+    try { return await origFetch(...args); }
+    finally {
+      if (mine && --pending === 0) {
+        bar.className = "done";
+        hideTimer = setTimeout(() => (bar.className = ""), 400);
+      }
+    }
+  };
+})();
+
+// Lời chào theo buổi
+function updateGreeting(name) {
+  const el = document.getElementById("greeting");
+  if (!el) return;
+  const h = new Date().getHours();
+  const buoi = h < 11 ? "Chào buổi sáng" : h < 14 ? "Chào buổi trưa" : h < 18 ? "Chào buổi chiều" : "Chào buổi tối";
+  const icon = h < 11 ? "☀️" : h < 18 ? "🌤️" : "🌙";
+  const first = isAdmin ? "thủ thư" : String(name || "").trim().split(/\s+/).pop();
+  el.innerHTML = `${icon} ${buoi}, <b>${esc(first)}</b> <span class="wave">👋</span>`;
+}
+
+// Số sách đang mượn hiện trên tab "Sách của tôi"
+async function updateLoanBadge() {
+  const badge = document.getElementById("myLoanBadge");
+  if (!badge || !currentStudent) { if (badge) badge.hidden = true; return; }
+  const loans = await getJSON("api/loans.php");
+  const n = loans.filter((l) => l.status !== "returned").length;
+  const changed = badge.textContent !== String(n);
+  badge.textContent = n;
+  badge.hidden = n === 0;
+  badge.classList.toggle("warn", loans.some((l) => l.status !== "returned" && daysUntil(l.due_date) < 0));
+  if (changed && n > 0) { badge.classList.remove("pop"); void badge.offsetWidth; badge.classList.add("pop"); }
+}
+
+// Mượn xong: bìa sách "bay" vào tab "Sách của tôi"
+function flyToMyBooks(btn) {
+  if (reduceMotion || !currentStudent || !btn) return;
+  const card = btn.closest(".book");
+  const cover = card && card.querySelector(".cover");
+  const target = document.querySelector('[data-tab="return"]');
+  if (!cover || !target) return;
+  const a = cover.getBoundingClientRect();
+  const b = target.getBoundingClientRect();
+  const ghost = cover.cloneNode(true);
+  ghost.classList.add("fly-ghost");
+  Object.assign(ghost.style, { left: a.left + "px", top: a.top + "px", width: a.width + "px", height: a.height + "px" });
+  document.body.appendChild(ghost);
+  const dx = b.left + b.width / 2 - (a.left + a.width / 2);
+  const dy = b.top + b.height / 2 - (a.top + a.height / 2);
+  ghost.animate(
+    [
+      { transform: "translate(0,0) scale(1) rotate(0)", opacity: 1 },
+      { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 80}px) scale(.7) rotate(-15deg)`, opacity: 1, offset: 0.5 },
+      { transform: `translate(${dx}px, ${dy}px) scale(.15) rotate(-30deg)`, opacity: 0.2 },
+    ],
+    { duration: 900, easing: "cubic-bezier(.4,0,.2,1)" }
+  ).onfinish = () => {
+    ghost.remove();
+    target.classList.remove("bump"); void target.offsetWidth; target.classList.add("bump");
+  };
+}
+
+// Viên "thuốc" trượt theo tab đang chọn
+function moveNavPill() {
+  const pill = document.getElementById("navPill");
+  const active = document.querySelector("#mainNav .tab-btn.active");
+  if (!pill || !active || !active.offsetWidth) return;
+  pill.style.width = active.offsetWidth + "px";
+  pill.style.transform = `translateX(${active.offsetLeft}px)`;
+  pill.style.opacity = 1;
+}
+{
+  const navObs = new MutationObserver(moveNavPill);
+  document.querySelectorAll("#mainNav .tab-btn").forEach((b) =>
+    navObs.observe(b, { attributes: true, attributeFilter: ["class", "style"] })
+  );
+}
+window.addEventListener("resize", moveNavPill);
+document.fonts && document.fonts.ready.then(moveNavPill);
+
+// Thẻ sách nghiêng theo con trỏ chuột + vệt sáng đi theo
+if (!reduceMotion && window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+  const list = document.getElementById("bookList");
+  list.addEventListener("pointermove", (e) => {
+    const card = e.target.closest(".book");
+    if (!card || card.classList.contains("reveal")) return;
+    const r = card.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+    card.style.setProperty("--rx", ((0.5 - py) * 6).toFixed(2) + "deg");
+    card.style.setProperty("--ry", ((px - 0.5) * 8).toFixed(2) + "deg");
+    card.style.setProperty("--mx", px * 100 + "%");
+    card.style.setProperty("--my", py * 100 + "%");
+  });
+  list.addEventListener("pointerout", (e) => {
+    const card = e.target.closest(".book");
+    if (card && !card.contains(e.relatedTarget)) { card.style.removeProperty("--rx"); card.style.removeProperty("--ry"); }
+  });
+}
+
+// Ô tìm kiếm tự "gõ" gợi ý khi đang trống
+(() => {
+  const input = document.getElementById("searchInput");
+  if (!input || reduceMotion) return;
+  const base = input.placeholder;
+  const ideas = ["Clean Code", "Marketing", "Minna no Nihongo", "Korean Grammar", "Python", "Tài chính"];
+  let i = 0, j = 0, del = false;
+  setInterval(() => {
+    if (document.activeElement === input || input.value) { input.placeholder = base; return; }
+    const w = ideas[i];
+    j += del ? -1 : 1;
+    input.placeholder = "Thử tìm: " + w.slice(0, j) + (j % 2 ? "|" : "");
+    if (!del && j >= w.length + 6) del = true;       // dừng một chút rồi xóa
+    if (del && j <= 0) { del = false; i = (i + 1) % ideas.length; }
+  }, 110);
+})();
+
+// Màn hình đăng nhập: hạt bay lên + đốm sáng theo chuột
+(() => {
+  const art = document.querySelector(".login-art");
+  const box = document.querySelector(".particles");
+  if (!art || !box || reduceMotion) return;
+  const icons = ["📚", "✨", "📖", "⭐", "🔖", "💡", "📘"];
+  for (let k = 0; k < 18; k++) {
+    const p = document.createElement("span");
+    p.textContent = icons[k % icons.length];
+    p.style.left = Math.random() * 100 + "%";
+    p.style.fontSize = 12 + Math.random() * 16 + "px";
+    p.style.animationDuration = 9 + Math.random() * 10 + "s";
+    p.style.animationDelay = -Math.random() * 18 + "s";
+    box.appendChild(p);
+  }
+  art.addEventListener("pointermove", (e) => {
+    const r = art.getBoundingClientRect();
+    art.style.setProperty("--sx", e.clientX - r.left + "px");
+    art.style.setProperty("--sy", e.clientY - r.top + "px");
+  });
+})();

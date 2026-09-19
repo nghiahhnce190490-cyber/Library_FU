@@ -7,14 +7,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="style.css?v=12" />
+<link rel="stylesheet" href="style.css?v=13" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f26f21' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5a2.5 2.5 0 0 0 0 5H19'/%3E%3C/svg%3E" />
 </head>
 <body>
+  <div id="topProgress" aria-hidden="true"></div>
 
   <!-- ===================== MÀN HÌNH ĐĂNG NHẬP ===================== -->
   <div id="loginScreen" class="login" style="display:none;">
     <div class="login-art">
+      <div class="spotlight" aria-hidden="true"></div>
+      <div class="particles" aria-hidden="true"></div>
       <div class="brand brand-light">
         <span class="brand-mark">
           <svg viewBox="0 0 24 24" width="19" height="19"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5a2.5 2.5 0 0 0 0 5H19"/></svg>
@@ -23,7 +26,7 @@
       </div>
 
       <div class="login-hero">
-        <h1>Mượn sách nhanh hơn,<br />trả sách đúng hạn hơn.</h1>
+        <h1>Mượn sách <span class="grad-text">nhanh hơn</span>,<br />trả sách <span class="grad-text">đúng hạn</span> hơn.</h1>
         <p>Tìm sách theo mã môn, xem ngay vị trí kệ và theo dõi hạn trả, tất cả ở một nơi.</p>
         <ul class="login-points">
           <li><span>🔎</span> Tìm theo tên sách, tác giả, mã môn</li>
@@ -80,8 +83,9 @@
         </div>
 
         <nav id="mainNav">
+          <span class="nav-pill" id="navPill" aria-hidden="true"></span>
           <button class="tab-btn active" data-tab="search" data-role="admin student">Tìm & mượn sách</button>
-          <button class="tab-btn" data-tab="return" data-role="student">Sách của tôi</button>
+          <button class="tab-btn" data-tab="return" data-role="student">Sách của tôi <span class="tab-badge" id="myLoanBadge" hidden></span></button>
           <button class="tab-btn" data-tab="admin" data-role="admin">Quản lý</button>
         </nav>
 
@@ -109,6 +113,7 @@
       <section id="tab-search" class="tab-panel active">
         <div class="page-head">
           <div>
+            <p class="greeting" id="greeting"></p>
             <h2>Tìm & mượn sách</h2>
             <p class="muted">Tìm theo tên sách, tác giả hoặc mã môn học.</p>
           </div>
@@ -417,6 +422,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
   <button type="button" id="toTop" aria-label="Lên đầu trang">↑</button>
 
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

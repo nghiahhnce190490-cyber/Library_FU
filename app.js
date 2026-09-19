@@ -1455,10 +1455,10 @@ if (!reduceMotion && window.matchMedia("(hover: hover) and (pointer: fine)").mat
 // =========================================================
 // TỰ ĐĂNG XUẤT
 //  - Đóng hết các tab của web rồi mở lại  -> phải đăng nhập lại
-//  - Không thao tác gì 30 phút             -> tự đăng xuất
+//  - Không thao tác gì 10 phút             -> tự đăng xuất
 //  - Đăng xuất ở 1 tab                      -> các tab khác cũng thoát
 // =========================================================
-const IDLE_LIMIT_MS = 30 * 60 * 1000;
+const IDLE_LIMIT_MS = 10 * 60 * 1000;
 const tabChannel = "BroadcastChannel" in window ? new BroadcastChannel("libgo") : null;
 
 function storageGet(store, key) { try { return window[store].getItem(key); } catch (e) { return null; } }
@@ -1492,7 +1492,7 @@ async function startSession() {
   const last = Number(storageGet("localStorage", "libgo_last") || 0);
   let mustLogout = false;
   if (!tabAlive) mustLogout = !(await anotherTabOpen());       // mở lại web sau khi đã đóng hết tab
-  if (last && Date.now() - last > IDLE_LIMIT_MS) mustLogout = true; // bỏ đi quá 30 phút
+  if (last && Date.now() - last > IDLE_LIMIT_MS) mustLogout = true; // bỏ đi quá 10 phút
   if (mustLogout) await fetch("api/logout.php", { method: "POST" }).catch(() => {});
   storageSet("sessionStorage", "libgo_tab", "1");
   touchActivity();
@@ -1509,7 +1509,7 @@ let lastTouch = 0;
 setInterval(() => {
   if (!isAdmin && !currentStudent) return;
   const last = Number(storageGet("localStorage", "libgo_last") || Date.now());
-  if (Date.now() - last > IDLE_LIMIT_MS) logout("Đã tự đăng xuất vì không hoạt động 30 phút");
+  if (Date.now() - last > IDLE_LIMIT_MS) logout("Đã tự đăng xuất vì không hoạt động 10 phút");
 }, 60000);
 
 // Khởi động ứng dụng (đặt cuối file để mọi biến ở trên đã sẵn sàng)

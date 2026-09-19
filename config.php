@@ -52,7 +52,7 @@ function hash_password(string $plain): string
 // hoặc máy chủ "ngủ" rồi dậy, các file này mất -> mọi người bị đăng xuất.
 // Lưu vào bảng `sessions` để phiên vẫn còn sau khi deploy / khởi động lại.
 // ---------------------------------------------------------------
-const SESSION_TTL = 30 * 60; // phiên tự hết hạn sau 30 phút không hoạt động (máy dùng chung ở thư viện)
+const SESSION_TTL = 10 * 60; // phiên tự hết hạn sau 10 phút không hoạt động (máy dùng chung ở thư viện)
 
 class DbSessionHandler implements SessionHandlerInterface, SessionUpdateTimestampHandlerInterface
 {

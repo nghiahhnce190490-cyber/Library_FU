@@ -23,8 +23,20 @@ function ensure_cover_column(PDO $pdo): void
 {
     try {
         $pdo->exec("ALTER TABLE books ADD COLUMN IF NOT EXISTS cover_url VARCHAR(500) NULL");
+        $pdo->exec("ALTER TABLE books ADD COLUMN IF NOT EXISTS read_access VARCHAR(10) NULL");
     } catch (PDOException $e) { /* bỏ qua */ }
 }
+
+// Mức đọc online của link sách: full = đọc toàn bộ, partial = đọc thử, none = chỉ có thông tin
+function clean_access($v): ?string
+{
+    $v = (string) $v;
+    return in_array($v, ['full', 'partial', 'none'], true) ? $v : null;
+}
+
+// Link do web tự tìm (Google Books / Open Library) -> được phép thay bằng link đọc được tốt hơn
+const AUTO_LINK_SQL = "(book_link IS NULL OR book_link = '' OR book_link LIKE 'https://books.google.com/%'
+                        OR book_link LIKE 'https://play.google.com/%' OR book_link LIKE 'https://openlibrary.org/%')";
 
 if ($method === 'GET') {
     // Phải đăng nhập (học sinh hoặc thủ thư) mới xem được danh sách sách
@@ -81,8 +93,8 @@ if ($method === 'POST') {
 
     ensure_cover_column($pdo);
     $stmt = $pdo->prepare(
-        "INSERT INTO books (title, author, subject_code, book_link, cover_url, shelf_location, total_qty, available_qty)
-         VALUES (:title, :author, :subject_code, :book_link, :cover_url, :shelf_location, :total_qty, :total_qty)"
+        "INSERT INTO books (title, author, subject_code, book_link, cover_url, read_access, shelf_location, total_qty, available_qty)
+         VALUES (:title, :author, :subject_code, :book_link, :cover_url, :read_access, :shelf_location, :total_qty, :total_qty)"
     );
     $stmt->execute([
         ':title' => $title,
@@ -90,6 +102,7 @@ if ($method === 'POST') {
         ':subject_code' => $subject_code,
         ':book_link' => $book_link,
         ':cover_url' => $cover_url !== '' ? $cover_url : null,
+        ':read_access' => $book_link !== '' ? clean_access($data['read_access'] ?? '') : null,
         ':shelf_location' => $shelf_location,
         ':total_qty' => $total_qty,
     ]);
@@ -110,7 +123,7 @@ if ($method === 'PUT') {
     $data = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = intval($data['id'] ?? 0);
 
-    // Chỉ cập nhật ảnh bìa / link sách: PUT {id, cover_url?, book_link?, only_cover: true}
+    // Chỉ cập nhật ảnh bìa / link sách: PUT {id, cover_url?, book_link?, read_access?, only_cover: true}
     // (dùng cho nút "Tự tìm ảnh bìa & link sách"). Không ghi đè cái đã có sẵn.
     if (!empty($data['only_cover'])) {
         $cover_url = clean_url($data['cover_url'] ?? '', 'Link ảnh bìa');
@@ -121,8 +134,9 @@ if ($method === 'PUT') {
                 ->execute([$cover_url, $id]);
         }
         if ($book_link !== '') {
-            $pdo->prepare("UPDATE books SET book_link = ? WHERE id = ? AND (book_link IS NULL OR book_link = '')")
-                ->execute([$book_link, $id]);
+            // Chỉ thay link trống hoặc link do web tự tìm; link thủ thư tự dán thì giữ nguyên
+            $pdo->prepare("UPDATE books SET book_link = ?, read_access = ? WHERE id = ? AND " . AUTO_LINK_SQL)
+                ->execute([$book_link, clean_access($data['read_access'] ?? '') ?? 'none', $id]);
         }
         echo json_encode(["success" => true]);
         exit;
@@ -162,7 +176,7 @@ if ($method === 'PUT') {
         }
 
         $pdo->prepare(
-            "UPDATE books SET title = ?, author = ?, subject_code = ?, book_link = ?, cover_url = ?, shelf_location = ?,
+            "UPDATE books SET title = ?, author = ?, subject_code = ?, book_link = ?, cover_url = ?, read_access = ?, shelf_location = ?,
                               total_qty = ?, available_qty = ?
              WHERE id = ?"
         )->execute([
@@ -171,6 +185,7 @@ if ($method === 'PUT') {
             trim($data['subject_code'] ?? ''),
             $book_link,
             $cover_url !== '' ? $cover_url : null,
+            $book_link !== '' ? clean_access($data['read_access'] ?? '') : null,
             trim($data['shelf_location'] ?? ''),
             $total_qty,
             $total_qty - $borrowed,

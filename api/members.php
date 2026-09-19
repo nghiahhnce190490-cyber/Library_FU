@@ -124,7 +124,7 @@ if ($method === 'POST') {
             "INSERT INTO members (student_code, name, class_name, contact, status, password_hash)
              VALUES (?, ?, ?, ?, 'active', ?)"
         );
-        $stmt->execute([$student_code, $name, $class_name, $contact, password_hash($password, PASSWORD_DEFAULT)]);
+        $stmt->execute([$student_code, $name, $class_name, $contact, hash_password($password)]);
         echo json_encode(["id" => $pdo->lastInsertId()]);
     } catch (PDOException $e) {
         http_response_code(400);

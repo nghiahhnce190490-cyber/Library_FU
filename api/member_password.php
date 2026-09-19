@@ -26,7 +26,7 @@ if ($student_code === '' || strlen($password) < 6) {
 }
 
 $stmt = $pdo->prepare("UPDATE members SET password_hash = ? WHERE student_code = ?");
-$stmt->execute([password_hash($password, PASSWORD_DEFAULT), $student_code]);
+$stmt->execute([hash_password($password), $student_code]);
 
 if ($stmt->rowCount() === 0) {
     http_response_code(404);

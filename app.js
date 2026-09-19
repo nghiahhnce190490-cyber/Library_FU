@@ -128,8 +128,13 @@ function coverHtml(title, url, extraCls = "") {
 
 function formatDate(iso) {
   if (!iso) return "—";
-  const [y, m, d] = iso.split("-");
+  const [y, m, d] = String(iso).slice(0, 10).split("-");
   return `${d}/${m}/${y}`;
+}
+// "2026-09-19 14:05:33" -> "14:05 · 19/09/2026"; phiếu cũ chưa có giờ thì chỉ hiện ngày
+function formatDateTime(dt, fallbackDate) {
+  if (!dt) return formatDate(fallbackDate);
+  return `${String(dt).slice(11, 16)} · ${formatDate(dt)}`;
 }
 function daysUntil(iso) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -396,7 +401,7 @@ async function checkout(bookId, btn) {
 // PHIẾU MƯỢN
 // =========================================================
 function dueInfo(l) {
-  if (l.status === "returned") return { cls: "", text: `Đã trả ${formatDate(l.return_date)}` };
+  if (l.status === "returned") return { cls: "", text: `Đã trả ${formatDateTime(l.returned_at, l.return_date)}` };
   const d = daysUntil(l.due_date);
   if (d < 0) return { cls: "danger", text: `Quá hạn ${-d} ngày` };
   if (d === 0) return { cls: "warn", text: "Hạn trả hôm nay" };
@@ -421,7 +426,7 @@ function renderLoan(l, asAdmin) {
         <div class="loan-meta">
           ${asAdmin ? `<span>👤 <b>${esc(l.member_name)}</b> · ${esc(l.student_code)}</span>` : ""}
           <span>📍 ${esc(l.shelf_location) || "—"}</span>
-          <span>Mượn ${formatDate(l.borrow_date)}</span>
+          <span>🕒 Mượn ${formatDateTime(l.borrow_at, l.borrow_date)}</span>
           <span>Hạn ${formatDate(l.due_date)}</span>
         </div>
       </div>

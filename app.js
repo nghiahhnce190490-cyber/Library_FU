@@ -94,11 +94,18 @@ function readerUrl(url) {
   const m = /^https:\/\/play\.google\.com\/books\/reader\?id=([^&]+)/.exec(url || "");
   return m ? `https://books.google.com/books?id=${m[1]}&printsec=frontcover` : url;
 }
+// Mức đọc thực tế: trang Open Library chỉ là trang thông tin (thường báo "unavailable"),
+// nên không bao giờ tính là "đọc được"
+function accessOf(b) {
+  if (/^https:\/\/openlibrary\.org\//.test(b.book_link || "")) return "none";
+  return b.read_access || "";
+}
 function readButton(b) {
   const link = safeUrl(readerUrl(b.book_link));
   if (!link) return "";
-  const label = ACCESS_LABEL[b.read_access] || "📖 Đọc online";
-  return `<a class="tag read ${esc(b.read_access || "unknown")}" href="${esc(link)}" target="_blank" rel="noopener">${label} ↗</a>`;
+  const access = accessOf(b);
+  const label = ACCESS_LABEL[access] || "📖 Đọc online";
+  return `<a class="tag read ${esc(access || "unknown")}" href="${esc(link)}" target="_blank" rel="noopener">${label} ↗</a>`;
 }
 const ACCESS_RANK = { full: 3, partial: 2, none: 1 };
 
@@ -214,6 +221,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
     });
     if (!ok) {
       errorEl.textContent = data.error || "Đăng nhập thất bại";
+      shake(document.querySelector(".login-card"));
       return;
     }
     form.reset();
@@ -268,7 +276,7 @@ async function loadBooks() {
 }
 
 function filteredBooks() {
-  if (bookCategory === "read") return allBooks.filter((b) => safeUrl(b.book_link) && ["full", "partial"].includes(b.read_access));
+  if (bookCategory === "read") return allBooks.filter((b) => safeUrl(b.book_link) && ["full", "partial"].includes(accessOf(b)));
   return bookCategory ? allBooks.filter((b) => categoryOf(b) === bookCategory) : allBooks;
 }
 
@@ -374,6 +382,7 @@ async function checkout(bookId, btn) {
       return;
     }
     showToast(data.message, "success");
+    celebrate(btn);
   });
   loadBooks();
 }
@@ -976,7 +985,7 @@ async function searchGoogleBooks(q, max = 5) {
 
 // Tìm trên Open Library (dự phòng khi Google không có / bị giới hạn)
 async function searchOpenLibrary(params, max = 5) {
-  const p = new URLSearchParams({ ...params, limit: String(max), fields: "key,title,author_name,first_publish_year,cover_i,ebook_access" });
+  const p = new URLSearchParams({ ...params, limit: String(max), fields: "key,title,author_name,first_publish_year,cover_i,public_scan_b,ia" });
   const res = await fetch("https://openlibrary.org/search.json?" + p.toString());
   if (!res.ok) throw new Error("openlibrary " + res.status);
   const data = await res.json();
@@ -986,8 +995,10 @@ async function searchOpenLibrary(params, max = 5) {
     authors: (d.author_name || []).slice(0, 3).join(", "),
     year: d.first_publish_year ? String(d.first_publish_year) : "",
     cover: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : "",
-    link: d.key ? `https://openlibrary.org${d.key}` : "",
-    access: d.ebook_access === "public" ? "full" : "none",   // "public" = sách tự do, đọc miễn phí toàn bộ
+    // Chỉ sách đã hết bản quyền, có bản scan công khai trên Internet Archive mới đọc được toàn bộ
+    ...(d.public_scan_b === true && d.ia && d.ia.length
+      ? { link: `https://archive.org/details/${encodeURIComponent(d.ia[0])}`, access: "full" }
+      : { link: d.key ? `https://openlibrary.org${d.key}` : "", access: "none" }),
     source: "Open Library",
   }));
 }
@@ -1025,7 +1036,7 @@ async function findCover(b) {
 
 // Link đang có là do web tự tìm (được phép thay bằng link tốt hơn)?
 function isAutoLink(url) {
-  return !url || /^https:\/\/(books\.google\.com|play\.google\.com|openlibrary\.org)\//.test(url);
+  return !url || /^https:\/\/(books\.google\.com|play\.google\.com|openlibrary\.org|archive\.org)\//.test(url);
 }
 
 let coverCandidates = [];
@@ -1041,7 +1052,8 @@ document.getElementById("coverFindBtn").addEventListener("click", async (e) => {
   coverCandidates = [];
 
   const books = (await getJSON("api/books.php")).filter(
-    (b) => !safeUrl(b.cover_url) || (isAutoLink(b.book_link) && !b.read_access)
+    (b) => !safeUrl(b.cover_url)
+      || (isAutoLink(b.book_link) && (!b.read_access || /^https:\/\/openlibrary\.org\//.test(b.book_link || "")))
   );
   if (books.length === 0) {
     status.textContent = "· Tất cả sách đã có ảnh bìa và link";
@@ -1061,7 +1073,7 @@ document.getElementById("coverFindBtn").addEventListener("click", async (e) => {
       // Chỉ lấy phần sách đang thiếu
       const addCover = !safeUrl(b.cover_url) && c.url ? c.url : "";
       const canReplace = isAutoLink(b.book_link) && c.link && c.link !== b.book_link
-        && (ACCESS_RANK[c.access] || 0) >= (ACCESS_RANK[b.read_access] || 0);
+        && (ACCESS_RANK[c.access] || 0) >= (ACCESS_RANK[accessOf(b)] || 0);
       const addLink = canReplace ? c.link : "";
       if (!addCover && !addLink) continue;
       coverCandidates.push({ book: b, url: addCover, link: addLink, access: c.access, source: c.source });
@@ -1184,3 +1196,100 @@ document.getElementById("quickFindResults").addEventListener("click", (e) => {
     `<p class="notice-text">✅ Đã điền sẵn tên sách, tác giả, ảnh bìa và link đọc. Nhập thêm mã môn, vị trí kệ, số lượng rồi bấm “Thêm sách”.</p>`;
   f.subject_code.focus();
 });
+
+// =========================================================
+// HIỆU ỨNG GIAO DIỆN
+// =========================================================
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Rung khung (VD: đăng nhập sai)
+function shake(el) {
+  if (!el) return;
+  el.classList.remove("shake");
+  void el.offsetWidth; // chạy lại hiệu ứng
+  el.classList.add("shake");
+}
+
+// Pháo giấy nhỏ bắn ra từ nút bấm
+function celebrate(fromEl) {
+  if (reduceMotion || !fromEl) return;
+  const r = fromEl.getBoundingClientRect();
+  const colors = ["#f26f21", "#16335a", "#127a52", "#e0a100", "#1e5aa8", "#d94f8a"];
+  for (let i = 0; i < 26; i++) {
+    const c = document.createElement("i");
+    c.className = "confetti";
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 60 + Math.random() * 110;
+    c.style.left = r.left + r.width / 2 + "px";
+    c.style.top = r.top + r.height / 2 + "px";
+    c.style.background = colors[i % colors.length];
+    c.style.setProperty("--x", Math.cos(angle) * dist + "px");
+    c.style.setProperty("--y", Math.sin(angle) * dist - 40 + "px");
+    c.style.setProperty("--r", Math.random() * 720 - 360 + "deg");
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 1100);
+  }
+}
+
+// Gợn sóng khi bấm nút
+document.addEventListener("pointerdown", (e) => {
+  const btn = e.target.closest(".btn");
+  if (!btn || btn.disabled || reduceMotion) return;
+  const r = btn.getBoundingClientRect();
+  const size = Math.max(r.width, r.height);
+  const dot = document.createElement("span");
+  dot.className = "ripple";
+  dot.style.width = dot.style.height = size + "px";
+  dot.style.left = e.clientX - r.left - size / 2 + "px";
+  dot.style.top = e.clientY - r.top - size / 2 + "px";
+  btn.appendChild(dot);
+  setTimeout(() => dot.remove(), 650);
+});
+
+// Số trên thẻ thống kê chạy từ 0 lên
+function countUp(el) {
+  const text = el.textContent;
+  const target = Number(text.replace(/[^\d]/g, ""));
+  if (!target || reduceMotion) return;
+  const suffix = text.includes("đ") ? "đ" : "";
+  const start = performance.now();
+  const dur = 900;
+  const step = (now) => {
+    const p = Math.min(1, (now - start) / dur);
+    const v = Math.round(target * (1 - Math.pow(1 - p, 3)));
+    el.textContent = v.toLocaleString("vi-VN") + suffix;
+    if (p < 1) requestAnimationFrame(step);
+    else el.textContent = text;
+  };
+  requestAnimationFrame(step);
+}
+
+// Mỗi khi danh sách có phần tử mới -> cho chúng xuất hiện lần lượt
+["bookList", "loanList", "allLoanList", "memberList", "adminStats", "mySummary", "coverResults"].forEach((id) => {
+  const box = document.getElementById(id);
+  if (!box || reduceMotion) return;
+  new MutationObserver((muts) => {
+    let i = 0;
+    muts.forEach((m) => m.addedNodes.forEach((n) => {
+      if (n.nodeType !== 1 || n.classList.contains("skeleton") || n.classList.contains("reveal")) return;
+      n.classList.add("reveal");
+      n.style.setProperty("--d", Math.min(i++, 12) * 45 + "ms");
+      // Xong hiệu ứng thì bỏ class, để hiệu ứng rê chuột (nổi lên) hoạt động
+      n.addEventListener("animationend", function done(ev) {
+        if (ev.target !== n) return;
+        n.classList.remove("reveal");
+        n.removeEventListener("animationend", done);
+      });
+      n.querySelectorAll?.(".stat-value").forEach(countUp);
+    }));
+  }).observe(box, { childList: true });
+});
+
+// Thanh trên cùng đổ bóng khi cuộn + nút lên đầu trang
+const toTop = document.getElementById("toTop");
+toTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+window.addEventListener("scroll", () => {
+  const y = window.scrollY;
+  document.querySelector(".topbar")?.classList.toggle("scrolled", y > 8);
+  toTop.classList.toggle("show", y > 600);
+}, { passive: true });

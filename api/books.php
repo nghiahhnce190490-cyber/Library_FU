@@ -4,6 +4,28 @@ header('Content-Type: application/json; charset=utf-8');
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+// Link (tài liệu điện tử / ảnh bìa) chỉ chấp nhận http:// hoặc https://
+// -> chặn các link độc hại kiểu "javascript:..."
+function clean_url(?string $url, string $label): string
+{
+    $url = trim((string) $url);
+    if ($url === '') return '';
+    if (strlen($url) > 500 || !preg_match('#^https?://#i', $url) || !filter_var($url, FILTER_VALIDATE_URL)) {
+        http_response_code(400);
+        echo json_encode(["error" => "$label phải là đường link bắt đầu bằng http:// hoặc https://"]);
+        exit;
+    }
+    return $url;
+}
+
+// Tự thêm cột ảnh bìa nếu database cũ chưa có (chạy khi thêm / sửa sách)
+function ensure_cover_column(PDO $pdo): void
+{
+    try {
+        $pdo->exec("ALTER TABLE books ADD COLUMN IF NOT EXISTS cover_url VARCHAR(500) NULL");
+    } catch (PDOException $e) { /* bỏ qua */ }
+}
+
 if ($method === 'GET') {
     // Phải đăng nhập (học sinh hoặc thủ thư) mới xem được danh sách sách
     if (!isset($_SESSION['admin_id']) && !isset($_SESSION['member_id'])) {
@@ -46,7 +68,8 @@ if ($method === 'POST') {
     $title = trim($data['title'] ?? '');
     $author = trim($data['author'] ?? '');
     $subject_code = trim($data['subject_code'] ?? '');
-    $book_link = trim($data['book_link'] ?? '');
+    $book_link = clean_url($data['book_link'] ?? '', 'Link tài liệu điện tử');
+    $cover_url = clean_url($data['cover_url'] ?? '', 'Link ảnh bìa');
     $shelf_location = trim($data['shelf_location'] ?? '');
     $total_qty = intval($data['total_qty'] ?? 0);
 
@@ -56,15 +79,17 @@ if ($method === 'POST') {
         exit;
     }
 
+    ensure_cover_column($pdo);
     $stmt = $pdo->prepare(
-        "INSERT INTO books (title, author, subject_code, book_link, shelf_location, total_qty, available_qty)
-         VALUES (:title, :author, :subject_code, :book_link, :shelf_location, :total_qty, :total_qty)"
+        "INSERT INTO books (title, author, subject_code, book_link, cover_url, shelf_location, total_qty, available_qty)
+         VALUES (:title, :author, :subject_code, :book_link, :cover_url, :shelf_location, :total_qty, :total_qty)"
     );
     $stmt->execute([
         ':title' => $title,
         ':author' => $author,
         ':subject_code' => $subject_code,
         ':book_link' => $book_link,
+        ':cover_url' => $cover_url !== '' ? $cover_url : null,
         ':shelf_location' => $shelf_location,
         ':total_qty' => $total_qty,
     ]);
@@ -74,7 +99,7 @@ if ($method === 'POST') {
 }
 
 // ---------- SỬA SÁCH (thủ thư) ----------
-// PUT {id, title, author, subject_code, book_link, shelf_location, total_qty}
+// PUT {id, title, author, subject_code, book_link, cover_url, shelf_location, total_qty}
 if ($method === 'PUT') {
     if (!isset($_SESSION['admin_id'])) {
         http_response_code(401);
@@ -82,8 +107,19 @@ if ($method === 'PUT') {
         exit;
     }
 
-    $data = json_decode(file_get_contents('php://input'), true);
+    $data = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = intval($data['id'] ?? 0);
+
+    // Chỉ cập nhật ảnh bìa: PUT {id, cover_url, only_cover: true} (dùng cho nút "Tự tìm ảnh bìa")
+    if (!empty($data['only_cover'])) {
+        $cover_url = clean_url($data['cover_url'] ?? '', 'Link ảnh bìa');
+        ensure_cover_column($pdo);
+        $stmt = $pdo->prepare("UPDATE books SET cover_url = ? WHERE id = ?");
+        $stmt->execute([$cover_url !== '' ? $cover_url : null, $id]);
+        echo json_encode(["success" => true]);
+        exit;
+    }
+
     $title = trim($data['title'] ?? '');
     $total_qty = intval($data['total_qty'] ?? 0);
 
@@ -92,6 +128,9 @@ if ($method === 'PUT') {
         echo json_encode(["error" => "Thiếu tên sách hoặc số lượng không hợp lệ"]);
         exit;
     }
+    $book_link = clean_url($data['book_link'] ?? '', 'Link tài liệu điện tử');
+    $cover_url = clean_url($data['cover_url'] ?? '', 'Link ảnh bìa');
+    ensure_cover_column($pdo);
 
     try {
         $pdo->beginTransaction();
@@ -115,14 +154,15 @@ if ($method === 'PUT') {
         }
 
         $pdo->prepare(
-            "UPDATE books SET title = ?, author = ?, subject_code = ?, book_link = ?, shelf_location = ?,
+            "UPDATE books SET title = ?, author = ?, subject_code = ?, book_link = ?, cover_url = ?, shelf_location = ?,
                               total_qty = ?, available_qty = ?
              WHERE id = ?"
         )->execute([
             $title,
             trim($data['author'] ?? ''),
             trim($data['subject_code'] ?? ''),
-            trim($data['book_link'] ?? ''),
+            $book_link,
+            $cover_url !== '' ? $cover_url : null,
             trim($data['shelf_location'] ?? ''),
             $total_qty,
             $total_qty - $borrowed,

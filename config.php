@@ -52,6 +52,15 @@ function hash_password(string $plain): string
 // hoặc máy chủ "ngủ" rồi dậy, các file này mất -> mọi người bị đăng xuất.
 // Lưu vào bảng `sessions` để phiên vẫn còn sau khi deploy / khởi động lại.
 // ---------------------------------------------------------------
+// Thêm cột giờ mượn / giờ trả cho bảng loans nếu database cũ chưa có.
+// Gọi TRƯỚC khi mở transaction (lệnh ALTER sẽ tự kết thúc transaction đang mở).
+function ensure_loan_time_columns(PDO $pdo): void
+{
+    try {
+        $pdo->exec("ALTER TABLE loans ADD COLUMN IF NOT EXISTS borrow_at DATETIME NULL, ADD COLUMN IF NOT EXISTS returned_at DATETIME NULL");
+    } catch (PDOException $e) { /* bỏ qua */ }
+}
+
 const SESSION_TTL = 10 * 60; // phiên tự hết hạn sau 10 phút không hoạt động (máy dùng chung ở thư viện)
 
 class DbSessionHandler implements SessionHandlerInterface, SessionUpdateTimestampHandlerInterface

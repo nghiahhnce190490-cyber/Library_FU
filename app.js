@@ -198,8 +198,9 @@ async function refreshSession() {
   openTab("search");
 }
 
-async function logout() {
+async function logout(reason) {
   await fetch("api/logout.php", { method: "POST" });
+  tabChannel && tabChannel.postMessage("logout"); // các tab khác cũng thoát theo
   isAdmin = false;
   currentStudent = null;
   allLoans = [];
@@ -208,7 +209,7 @@ async function logout() {
   );
   document.getElementById("loginError").textContent = "";
   await refreshSession();
-  showToast("Đã đăng xuất");
+  showToast(reason || "Đã đăng xuất");
 }
 
 document.getElementById("loginForm").addEventListener("submit", async (e) => {
@@ -793,7 +794,7 @@ bindForm("resetPasswordForm", "api/member_password.php", (f) => ({
 }), (d) => d.message || "Đã đặt lại mật khẩu");
 
 // ---------- Khởi động ----------
-refreshSession();
+// (khởi động ở cuối file: startSession)
 
 // =========================================================
 // QUÊN MẬT KHẨU (sinh viên) — gửi mã qua email rồi đặt mật khẩu mới
@@ -1450,3 +1451,66 @@ if (!reduceMotion && window.matchMedia("(hover: hover) and (pointer: fine)").mat
     art.style.setProperty("--sy", e.clientY - r.top + "px");
   });
 })();
+
+// =========================================================
+// TỰ ĐĂNG XUẤT
+//  - Đóng hết các tab của web rồi mở lại  -> phải đăng nhập lại
+//  - Không thao tác gì 30 phút             -> tự đăng xuất
+//  - Đăng xuất ở 1 tab                      -> các tab khác cũng thoát
+// =========================================================
+const IDLE_LIMIT_MS = 30 * 60 * 1000;
+const tabChannel = "BroadcastChannel" in window ? new BroadcastChannel("libgo") : null;
+
+function storageGet(store, key) { try { return window[store].getItem(key); } catch (e) { return null; } }
+function storageSet(store, key, val) { try { window[store].setItem(key, val); } catch (e) { /* bỏ qua */ } }
+
+// Hỏi xem còn tab nào của web đang mở không
+function anotherTabOpen() {
+  if (!tabChannel) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const onMsg = (e) => { if (e.data === "pong") { tabChannel.removeEventListener("message", onMsg); resolve(true); } };
+    tabChannel.addEventListener("message", onMsg);
+    tabChannel.postMessage("ping");
+    setTimeout(() => { tabChannel.removeEventListener("message", onMsg); resolve(false); }, 300);
+  });
+}
+
+if (tabChannel) {
+  tabChannel.addEventListener("message", (e) => {
+    if (e.data === "ping" && storageGet("sessionStorage", "libgo_tab")) tabChannel.postMessage("pong");
+    if (e.data === "logout" && (isAdmin || currentStudent)) {
+      isAdmin = false; currentStudent = null;
+      refreshSession().then(() => showToast("Bạn đã đăng xuất ở tab khác"));
+    }
+  });
+}
+
+function touchActivity() { storageSet("localStorage", "libgo_last", String(Date.now())); }
+
+async function startSession() {
+  const tabAlive = storageGet("sessionStorage", "libgo_tab") === "1";
+  const last = Number(storageGet("localStorage", "libgo_last") || 0);
+  let mustLogout = false;
+  if (!tabAlive) mustLogout = !(await anotherTabOpen());       // mở lại web sau khi đã đóng hết tab
+  if (last && Date.now() - last > IDLE_LIMIT_MS) mustLogout = true; // bỏ đi quá 30 phút
+  if (mustLogout) await fetch("api/logout.php", { method: "POST" }).catch(() => {});
+  storageSet("sessionStorage", "libgo_tab", "1");
+  touchActivity();
+  await refreshSession();
+}
+
+// Ghi nhận thao tác (tối đa 1 lần / 15 giây) và kiểm tra thời gian không hoạt động mỗi phút
+let lastTouch = 0;
+["pointerdown", "keydown", "scroll", "touchstart"].forEach((ev) =>
+  window.addEventListener(ev, () => {
+    if (Date.now() - lastTouch > 15000) { lastTouch = Date.now(); touchActivity(); }
+  }, { passive: true })
+);
+setInterval(() => {
+  if (!isAdmin && !currentStudent) return;
+  const last = Number(storageGet("localStorage", "libgo_last") || Date.now());
+  if (Date.now() - last > IDLE_LIMIT_MS) logout("Đã tự đăng xuất vì không hoạt động 30 phút");
+}, 60000);
+
+// Khởi động ứng dụng (đặt cuối file để mọi biến ở trên đã sẵn sàng)
+startSession();

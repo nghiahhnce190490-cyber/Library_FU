@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="style.css?v=21" />
+<link rel="stylesheet" href="style.css?v=22" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f26f21' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5a2.5 2.5 0 0 0 0 5H19'/%3E%3C/svg%3E" />
 </head>
 <body>
@@ -76,7 +76,7 @@
   <div id="appScreen" style="display:none;">
     <header class="topbar">
       <div class="topbar-inner">
-        <div class="brand">
+        <div class="brand brand-home" role="button" tabindex="0" title="Về trang chủ" onclick="goHome()" onkeydown="if(event.key==='Enter')goHome()">
           <span class="brand-mark">
             <svg viewBox="0 0 24 24" width="19" height="19"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6.5a2.5 2.5 0 0 0 0 5H19"/></svg>
           </span>
@@ -91,10 +91,12 @@
         </nav>
 
         <div class="user">
-          <span class="avatar" id="userAvatar">?</span>
-          <div class="user-text">
-            <strong id="userName"></strong>
-            <small id="userRole"></small>
+          <div class="user-link" id="userLink" role="button" tabindex="0" title="Thông tin cá nhân" onclick="openProfile()" onkeydown="if(event.key==='Enter')openProfile()">
+            <span class="avatar" id="userAvatar">?</span>
+            <div class="user-text">
+              <strong id="userName"></strong>
+              <small id="userRole"></small>
+            </div>
           </div>
           <button class="btn btn-ghost btn-sm" onclick="openChangePw()" title="Đổi mật khẩu">
             <svg viewBox="0 0 24 24" width="18" height="18" class="ic"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
@@ -300,6 +302,44 @@
           <div id="allLoanList" class="loan-list"></div>
         </div>
       </section>
+      <!-- ---------- TRANG: THÔNG TIN CÁ NHÂN (sinh viên) ---------- -->
+      <section id="tab-profile" class="tab-panel">
+        <div class="page-head">
+          <div>
+            <h2>Thông tin cá nhân</h2>
+            <p class="muted">Xem và tự cập nhật thông tin của bạn. Mã học sinh là tên đăng nhập nên không đổi được.</p>
+          </div>
+        </div>
+
+        <div class="profile-grid">
+          <div class="panel profile-card">
+            <div class="profile-avatar" id="pfAvatar">?</div>
+            <h3 id="pfName"></h3>
+            <p class="muted" id="pfCode"></p>
+            <span class="badge ok" id="pfStatus">Đang hoạt động</span>
+            <div class="profile-stats">
+              <div><b id="pfBorrowing">0</b><span>Đang mượn</span></div>
+              <div><b id="pfOverdue">0</b><span>Quá hạn</span></div>
+              <div><b id="pfTotal">0</b><span>Lượt mượn</span></div>
+              <div><b id="pfFine">0đ</b><span>Tiền phạt</span></div>
+            </div>
+            <button type="button" class="btn btn-outline" onclick="openChangePw()">🔒 Đổi mật khẩu</button>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><span class="panel-icon">✏️</span><h3>Sửa thông tin</h3></div>
+            <form id="profileForm" class="form-grid">
+              <label class="field span-2"><span>Mã học sinh</span><input id="pfCodeInput" disabled /></label>
+              <label class="field span-2"><span>Họ tên *</span><input name="name" maxlength="100" required /></label>
+              <label class="field span-2"><span>Lớp / Khoa</span><input name="class_name" maxlength="100" placeholder="VD: EXE101_G11" /></label>
+              <label class="field span-2"><span>Email *</span><input name="contact" type="email" maxlength="150" required placeholder="VD: ten@gmail.com" /></label>
+              <p class="muted small span-2">Email dùng để nhận mã khi bạn quên mật khẩu, hãy nhập email bạn đang dùng.</p>
+              <button type="submit" class="btn btn-primary span-2">Lưu thay đổi</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
     </main>
 
     <footer class="footer muted small">© Thư viện số · thuvienfpt.id.vn</footer>
@@ -434,6 +474,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
   <button type="button" id="toTop" aria-label="Lên đầu trang">↑</button>
 
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=22"></script>
 </body>
 </html>

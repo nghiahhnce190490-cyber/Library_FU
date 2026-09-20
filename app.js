@@ -170,6 +170,7 @@ function openTab(tab) {
   if (tab === "search") loadBooks();
   if (tab === "return") loadMyLoans();
   if (tab === "admin") loadAdmin();
+  if (tab === "profile") loadProfile();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 document.querySelectorAll("#mainNav .tab-btn").forEach((btn) => {
@@ -1458,6 +1459,7 @@ function flyToMyBooks(btn) {
 function moveNavPill() {
   const pill = document.getElementById("navPill");
   const active = document.querySelector("#mainNav .tab-btn.active");
+  if (pill && !active) { pill.style.opacity = 0; return; } // đang ở trang không có trên menu (VD: Thông tin cá nhân)
   if (!pill || !active || !active.offsetWidth) return;
   pill.style.width = active.offsetWidth + "px";
   pill.style.transform = `translateX(${active.offsetLeft}px)`;
@@ -1589,6 +1591,61 @@ setInterval(() => {
   const last = Number(storageGet("localStorage", "libgo_last") || Date.now());
   if (Date.now() - last > IDLE_LIMIT_MS) logout("Đã tự đăng xuất vì không hoạt động 10 phút");
 }, 60000);
+
+// =========================================================
+// VỀ TRANG CHỦ + THÔNG TIN CÁ NHÂN
+// =========================================================
+// Bấm logo "Thư viện số" -> về trang Tìm & mượn sách
+function goHome() {
+  if (!isAdmin && !currentStudent) return;
+  openTab("search");
+}
+
+// Bấm vào tên / ảnh đại diện: sinh viên -> trang thông tin cá nhân; thủ thư -> đổi mật khẩu
+function openProfile() {
+  if (currentStudent) openTab("profile");
+  else if (isAdmin) openChangePw();
+}
+
+async function loadProfile() {
+  const p = await getJSON("api/profile.php");
+  if (!p || !p.student_code) return;
+  document.getElementById("pfAvatar").textContent = String(p.name || "?").trim().charAt(0).toUpperCase();
+  document.getElementById("pfName").textContent = p.name;
+  document.getElementById("pfCode").textContent = `${p.student_code}${p.class_name ? " · " + p.class_name : ""}`;
+  const st = document.getElementById("pfStatus");
+  st.textContent = p.status === "locked" ? "Đang bị khóa quyền mượn" : "Đang hoạt động";
+  st.className = "badge " + (p.status === "locked" ? "danger" : "ok");
+  document.getElementById("pfBorrowing").textContent = p.borrowing;
+  document.getElementById("pfOverdue").textContent = p.overdue;
+  document.getElementById("pfTotal").textContent = p.total_loans;
+  document.getElementById("pfFine").textContent = money(p.total_fine);
+  const f = document.getElementById("profileForm");
+  document.getElementById("pfCodeInput").value = p.student_code;
+  f.name.value = p.name || "";
+  f.class_name.value = p.class_name || "";
+  f.contact.value = p.contact || "";
+}
+
+document.getElementById("profileForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  await withLoading(f.querySelector("button[type=submit]"), async () => {
+    const { ok, data } = await sendJSON("PUT", "api/profile.php", {
+      name: f.name.value,
+      class_name: f.class_name.value,
+      contact: f.contact.value,
+    });
+    if (!ok) { showToast(data.error || "Lưu thất bại", "error"); return; }
+    showToast(data.message, "success");
+    // cập nhật tên trên thanh trên cùng + lời chào
+    currentStudent.name = f.name.value.trim();
+    document.getElementById("userName").textContent = currentStudent.name;
+    document.getElementById("userAvatar").textContent = currentStudent.name.charAt(0).toUpperCase();
+    updateGreeting(currentStudent.name);
+    loadProfile();
+  });
+});
 
 // Khởi động ứng dụng (đặt cuối file để mọi biến ở trên đã sẵn sàng)
 startSession();

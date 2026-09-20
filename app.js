@@ -116,9 +116,13 @@ function safeUrl(url) {
 }
 
 // Bìa sách: có link ảnh thì hiện ảnh, không có (hoặc ảnh lỗi) thì hiện bìa màu tự tạo
-function coverHtml(title, url, extraCls = "") {
+function coverHtml(title, url, extraCls = "", author = "") {
   const src = safeUrl(url);
-  return `<div class="cover ${extraCls} ${src ? "has-img" : ""}" style="--h:${hueOf(title)}">${initial(title)}${
+  // Bìa tự tạo: có tên sách + tác giả như bìa thật (bìa nhỏ chỉ hiện chữ cái đầu)
+  return `<div class="cover ${extraCls} ${src ? "has-img" : ""}" style="--h:${hueOf(title)}">
+    <span class="cv-initial">${initial(title)}</span>
+    <span class="cv-title">${esc(title)}</span>
+    ${author ? `<span class="cv-author">${esc(String(author).split(",")[0])}</span>` : ""}${
     src
       ? `<img src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer"
              onerror="this.parentNode.classList.remove('has-img'); this.remove();">`
@@ -339,10 +343,11 @@ function renderBook(b) {
   const pct = Math.max(0, Math.min(100, (avail / total) * 100));
   const barCls = avail === 0 ? "out" : avail / total <= 0.34 ? "low" : "";
   const canBorrow = currentStudent || isAdmin;
+  const id = Number(b.id);
 
   return `
-    <article class="book" data-cat="${categoryOf(b)}">
-      ${coverHtml(b.title, b.cover_url)}
+    <article class="book" data-cat="${categoryOf(b)}" data-id="${id}" tabindex="0" title="Bấm để xem chi tiết">
+      ${coverHtml(b.title, b.cover_url, "", b.author)}
       <div class="book-body">
         <h3>${esc(b.title)}</h3>
         <div class="author">${b.author ? esc(b.author) : "Chưa rõ tác giả"}</div>
@@ -351,12 +356,6 @@ function renderBook(b) {
           ${b.shelf_location ? `<span class="tag">📍 ${esc(b.shelf_location)}</span>` : ""}
           ${readButton(b)}
         </div>
-        ${isAdmin
-          ? `<div class="book-admin">
-               <button class="btn btn-outline btn-xs" onclick="openEditBook(${Number(b.id)})">✏️ Sửa</button>
-               <button class="btn btn-danger-ghost btn-xs" onclick="deleteBook(${Number(b.id)}, this)">🗑 Xóa</button>
-             </div>`
-          : ""}
         <div class="book-foot">
           <div class="stock">
             <div class="stock-bar ${barCls}"><span style="width:${pct}%"></span></div>
@@ -364,11 +363,85 @@ function renderBook(b) {
           </div>
           ${canBorrow
             ? `<button class="btn ${avail > 0 ? "btn-primary" : "btn-outline"} btn-sm" ${avail > 0 ? "" : "disabled"}
-                 onclick="checkout(${Number(b.id)}, this)">${avail > 0 ? "Mượn sách" : "Hết sách"}</button>`
+                 onclick="checkout(${id}, this)">${avail > 0 ? "Mượn sách" : "Hết sách"}</button>`
             : ""}
         </div>
       </div>
+      ${isAdmin
+        ? `<div class="book-menu">
+             <button type="button" class="menu-btn" aria-label="Tùy chọn" onclick="toggleBookMenu(event, this)">⋯</button>
+             <div class="menu-pop">
+               <button type="button" onclick="closeMenus(); openEditBook(${id})">✏️ Sửa sách</button>
+               <button type="button" class="danger" onclick="closeMenus(); deleteBook(${id}, this)">🗑 Xóa sách</button>
+             </div>
+           </div>`
+        : ""}
     </article>`;
+}
+
+// Menu "⋯" của thủ thư trên thẻ sách
+function closeMenus() {
+  document.querySelectorAll(".book-menu.open").forEach((m) => m.classList.remove("open"));
+}
+function toggleBookMenu(e, btn) {
+  e.stopPropagation();
+  const menu = btn.parentNode;
+  const wasOpen = menu.classList.contains("open");
+  closeMenus();
+  if (!wasOpen) menu.classList.add("open");
+}
+document.addEventListener("click", (e) => { if (!e.target.closest(".book-menu")) closeMenus(); });
+
+// Bấm vào thẻ sách -> mở khung chi tiết (trừ khi bấm vào nút / link bên trong)
+document.getElementById("bookList").addEventListener("click", (e) => {
+  if (e.target.closest("button, a, .book-menu")) return;
+  const card = e.target.closest(".book");
+  if (card) openBookDetail(Number(card.dataset.id));
+});
+document.getElementById("bookList").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || !e.target.classList.contains("book")) return;
+  openBookDetail(Number(e.target.dataset.id));
+});
+
+const CAT_NAME = { it: "Công nghệ thông tin", eng: "Tiếng Anh", jpn: "Tiếng Nhật", kor: "Tiếng Hàn", biz: "Quản trị – Kinh doanh", mkt: "Marketing", fin: "Tài chính – Ngân hàng" };
+
+function openBookDetail(id) {
+  const b = booksById[id];
+  if (!b) return;
+  const avail = Number(b.available_qty);
+  const total = Number(b.total_qty) || 1;
+  const pct = Math.max(0, Math.min(100, (avail / total) * 100));
+  const barCls = avail === 0 ? "out" : avail / total <= 0.34 ? "low" : "";
+  const canBorrow = currentStudent || isAdmin;
+  const cat = categoryOf(b);
+  const box = document.getElementById("bookDetailBody");
+  box.innerHTML = `
+    <div class="bd-cover" data-cat="${cat}">${coverHtml(b.title, b.cover_url, "cover-lg", b.author)}</div>
+    <div class="bd-info">
+      <span class="bd-cat" data-cat="${cat}">${esc(CAT_NAME[cat] || "")}</span>
+      <h3>${esc(b.title)}</h3>
+      <p class="bd-author">${b.author ? esc(b.author) : "Chưa rõ tác giả"}</p>
+      <dl class="bd-meta">
+        <div><dt>Mã môn</dt><dd>${esc(b.subject_code) || "—"}</dd></div>
+        <div><dt>Vị trí kệ</dt><dd>📍 ${esc(b.shelf_location) || "—"}</dd></div>
+        <div><dt>Tình trạng</dt><dd>${avail > 0 ? `Còn <b>${avail}</b>/${total} cuốn` : "<b>Đã hết sách</b>"}</dd></div>
+        <div><dt>Hạn mượn</dt><dd>90 ngày</dd></div>
+      </dl>
+      <div class="stock-bar ${barCls} bd-bar"><span style="width:${pct}%"></span></div>
+      <div class="bd-actions">
+        ${canBorrow
+          ? `<button class="btn ${avail > 0 ? "btn-primary" : "btn-outline"}" ${avail > 0 ? "" : "disabled"}
+               onclick="closeBookDetail(); checkout(${id}, document.querySelector('.book[data-id=&quot;${id}&quot;] .btn-primary') || this)">${avail > 0 ? "Mượn sách" : "Hết sách"}</button>`
+          : ""}
+        ${readButton(b).replace('class="tag read', 'class="btn btn-outline bd-read read')}
+        ${isAdmin ? `<button class="btn btn-outline" onclick="closeBookDetail(); openEditBook(${id})">✏️ Sửa</button>` : ""}
+      </div>
+      ${isAdmin ? `<p class="muted small">Chế độ mượn hộ: nhập mã học sinh ở ô phía trên trước khi bấm Mượn.</p>` : ""}
+    </div>`;
+  document.getElementById("bookDetailDialog").showModal();
+}
+function closeBookDetail() {
+  document.getElementById("bookDetailDialog").close();
 }
 
 async function checkout(bookId, btn) {

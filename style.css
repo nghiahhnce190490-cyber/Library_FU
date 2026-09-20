@@ -1005,5 +1005,106 @@ input:focus, select:focus { border-color: var(--orange) !important; box-shadow: 
 
 @media (prefers-reduced-motion: reduce) { .bg-mesh { display: none; } }
 
+/* =========================================================
+   NÂNG CẤP GIAO DIỆN ĐỢT 1
+   ========================================================= */
+
+/* 1. Khung rộng hơn: 4 cuốn / hàng trên màn hình lớn */
+.container, .topbar-inner { max-width: 1320px; }
+.book-grid { grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); }
+
+/* 2. Bìa tự tạo giống sách thật: tên sách + tác giả + họa tiết */
+.cover {
+  width: 80px; height: 116px; padding: 10px 7px 9px 13px;
+  display: flex; flex-direction: column; justify-content: space-between; align-items: stretch; text-align: left;
+  background:
+    radial-gradient(circle at 85% 18%, rgba(255,255,255,.22) 0 14%, transparent 15%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.07) 0 5px, transparent 5px 11px),
+    linear-gradient(160deg, hsl(var(--h) 60% 52%), hsl(calc(var(--h) + 30) 65% 30%));
+  font-size: inherit;
+}
+.cover::after { display: none; }
+.cv-initial { display: none; }
+.cv-title {
+  font-size: 9px; line-height: 1.2; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; color: #fff;
+  display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
+  text-shadow: 0 1px 2px rgba(0,0,0,.35);
+}
+.cv-author {
+  font-size: 7px; line-height: 1.2; font-weight: 600; color: rgba(255,255,255,.85);
+  border-top: 1px solid rgba(255,255,255,.4); padding-top: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cover.has-img > span { visibility: hidden; }
+/* Bìa nhỏ (phiếu mượn, xem trước): chỉ hiện chữ cái đầu */
+.cover.sm, .cover.cover-preview { padding: 0; align-items: center; justify-content: center; }
+.cover.sm .cv-title, .cover.sm .cv-author, .cover-preview .cv-title, .cover-preview .cv-author { display: none; }
+.cover.sm .cv-initial, .cover-preview .cv-initial { display: block; font-size: 18px; font-weight: 800; color: #fff; text-align: center; }
+/* Bìa lớn trong khung chi tiết */
+.cover.cover-lg { width: 190px; height: 272px; padding: 22px 16px 18px 26px; border-radius: 4px 12px 12px 4px; }
+.cover-lg .cv-title { font-size: 19px; -webkit-line-clamp: 7; }
+.cover-lg .cv-author { font-size: 12px; padding-top: 8px; }
+
+/* 3. Thủ thư: Sửa / Xóa gom vào nút "⋯" */
+.book { cursor: pointer; }
+.book:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.book:has(.book-menu) h3 { padding-right: 26px; }
+.book-menu { position: absolute; top: 8px; right: 8px; z-index: 3; }
+.menu-btn {
+  width: 30px; height: 30px; border-radius: 8px; border: 1px solid transparent; cursor: pointer;
+  background: rgba(255,255,255,.05); color: var(--text-2); font-size: 18px; line-height: 1; font-weight: 800;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.menu-btn:hover, .book-menu.open .menu-btn { background: rgba(255,106,0,.15); color: var(--orange); border-color: rgba(255,106,0,.4); }
+.menu-pop {
+  position: absolute; right: 0; top: 36px; min-width: 150px; padding: 6px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-lg);
+  display: none; flex-direction: column; gap: 2px;
+}
+.book-menu.open .menu-pop { display: flex; animation: modalIn .18s ease; }
+.menu-pop button {
+  font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer;
+  padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text);
+}
+.menu-pop button:hover { background: rgba(255,255,255,.06); }
+.menu-pop button.danger { color: var(--danger); }
+.menu-pop button.danger:hover { background: var(--danger-bg); }
+
+/* 4. Khung chi tiết sách */
+.modal.modal-wide { width: min(760px, calc(100% - 32px)); }
+.book-detail { display: grid; grid-template-columns: 190px 1fr; gap: 26px; align-items: start; }
+.bd-cover { display: flex; justify-content: center; }
+.bd-cover .cover { box-shadow: 14px 16px 30px -14px rgba(0,0,0,.7), inset 6px 0 0 rgba(0,0,0,.15); }
+.bd-info h3 { font-size: 22px; font-weight: 800; line-height: 1.25; color: #fff; margin: 8px 0 4px; }
+.bd-author { color: var(--text-2); margin: 0 0 14px; }
+.bd-cat {
+  display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 6px; color: #fff; background: var(--cc, var(--orange));
+}
+.bd-cat[data-cat="it"] { --cc: var(--c-it); } .bd-cat[data-cat="eng"] { --cc: var(--c-eng); }
+.bd-cat[data-cat="jpn"] { --cc: var(--c-jpn); } .bd-cat[data-cat="kor"] { --cc: var(--c-kor); }
+.bd-cat[data-cat="biz"] { --cc: var(--c-biz); } .bd-cat[data-cat="mkt"] { --cc: var(--c-mkt); }
+.bd-cat[data-cat="fin"] { --cc: var(--c-fin); }
+.bd-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 14px; }
+.bd-meta div { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; }
+.bd-meta dt { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); font-weight: 700; }
+.bd-meta dd { margin: 2px 0 0; font-weight: 600; }
+.bd-bar { height: 6px; margin-bottom: 18px; }
+.bd-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.bd-read { text-decoration: none; }
+.bd-read.full { border-color: rgba(52,211,153,.5); color: var(--ok); }
+.bd-read.partial { border-color: rgba(96,165,250,.5); color: var(--info); }
+@media (max-width: 620px) {
+  .book-detail { grid-template-columns: 1fr; gap: 16px; }
+  .cover.cover-lg { width: 150px; height: 215px; }
+  .cover-lg .cv-title { font-size: 15px; }
+  .bd-actions .btn { flex: 1; justify-content: center; }
+}
+
+/* 5. Hàng nút lọc gọn trên 1 dòng (vuốt / cuộn ngang nếu thiếu chỗ) */
+.cat-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.cat-chips::-webkit-scrollbar { display: none; }
+.cat-chips .chip { flex: none; padding: 6px 10px; font-size: 11px; }
+
 /* Phần tử có thuộc tính hidden luôn bị ẩn (tránh bị display:flex/grid ghi đè) */
 [hidden] { display: none !important; }

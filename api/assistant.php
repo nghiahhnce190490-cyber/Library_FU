@@ -254,7 +254,6 @@ function call_gemini(string $apiKey, array $payload): array
     error_log("Gemini API error, giving up [$lastDiag]");
     throw new RuntimeException('AI request failed');
 }
-}
 
 // PHP đọc JSON {} thành mảng rỗng []; khi gửi lại cho Gemini phải đổi về object
 function fix_parts(array $parts): array

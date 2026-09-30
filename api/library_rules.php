@@ -7,7 +7,7 @@ const MAX_RENEWS = 1;  // số lần gia hạn tối đa cho mỗi phiếu
 
 // Quy tắc mượn — PHẢI khớp với api/checkout.php của bạn. Chỉnh 2 số này nếu checkout.php dùng số khác.
 const CHECKOUT_LOAN_DAYS = 90;   // số ngày được mượn
-const MAX_ACTIVE_LOANS = 5;      // số sách được mượn cùng lúc tối đa
+const MAX_ACTIVE_LOANS = 10;     // số sách được mượn cùng lúc tối đa
 
 /**
  * Lấy ID sinh viên đang đăng nhập.

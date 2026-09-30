@@ -30,17 +30,19 @@
     </section>`;
   document.body.appendChild(root);
 
-  // Chỉ hiện trợ lý khi đã đăng nhập. Kiểm tra định kỳ để lúc đăng nhập/đăng xuất tự cập nhật.
+  // Chỉ ẩn trợ lý ở màn hình đăng nhập. Nhận biết bằng cách nhìn giao diện:
+  // khi màn hình ứng dụng (#appScreen) đang hiện tức là đã vào trong.
   let peekTimer = null;
-  async function refreshVisibility() {
-    let loggedIn = false;
-    try {
-      const res = await fetch("api/session_check.php");
-      const data = await res.json();
-      loggedIn = !!data.loggedIn;
-    } catch {
-      loggedIn = false;
-    }
+  function isInsideApp() {
+    const app = document.getElementById("appScreen");
+    if (app && getComputedStyle(app).display !== "none") return true;
+    // Dự phòng: nếu không có #appScreen, coi như hiện khi màn đăng nhập đang ẩn
+    const login = document.getElementById("loginScreen");
+    if (login && getComputedStyle(login).display !== "none") return false;
+    return !!app;
+  }
+  function refreshVisibility() {
+    const loggedIn = isInsideApp();
     root.hidden = !loggedIn;
     if (!loggedIn) {
       setOpen(false);
@@ -184,8 +186,8 @@
     }
   });
 
-  // Kiểm tra đăng nhập lúc tải trang, rồi kiểm tra lại mỗi 5 giây
-  // để trợ lý tự ẩn/hiện khi đăng nhập hoặc đăng xuất.
+  // Kiểm tra lúc tải trang, rồi kiểm tra lại mỗi 1,5 giây để tự ẩn/hiện
+  // ngay khi đăng nhập hoặc đăng xuất (nhìn theo giao diện, không gọi server).
   refreshVisibility();
-  setInterval(refreshVisibility, 5000);
+  setInterval(refreshVisibility, 1500);
 })();

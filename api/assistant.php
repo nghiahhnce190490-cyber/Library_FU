@@ -205,7 +205,9 @@ function call_gemini(string $apiKey, array $payload): array
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 30,
+        CURLOPT_TIMEOUT => 45,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4, // tránh treo do IPv6 không có đường ra trên Render
         CURLOPT_HTTPHEADER => [
             'Content-Type: application/json',
             'x-goog-api-key: ' . $apiKey,

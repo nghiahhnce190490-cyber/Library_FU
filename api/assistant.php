@@ -8,7 +8,13 @@ header('Content-Type: application/json; charset=utf-8');
 
 // Tên mô hình: đặt biến môi trường GEMINI_MODEL để đổi mà không sửa code.
 // Xem danh sách mô hình đang có trong Google AI Studio; nên chọn dòng "flash" (nhanh, rẻ).
-define('AI_MODEL', getenv('GEMINI_MODEL') ?: 'gemini-3.5-flash');
+// Danh sách mô hình theo thứ tự ưu tiên. Khi một mô hình hết quota (429),
+// trợ lý tự chuyển sang mô hình kế tiếp còn quota. Đặt biến môi trường GEMINI_MODELS
+// (các tên cách nhau bởi dấu phẩy) để đổi mà không sửa code.
+define('AI_MODELS', array_values(array_filter(array_map('trim', explode(
+    ',',
+    getenv('GEMINI_MODELS') ?: getenv('GEMINI_MODEL') ?: 'gemini-3.1-flash-lite,gemini-2.5-flash-lite,gemini-2.5-flash,gemini-3.5-flash'
+)))));
 const AI_DAILY_LIMIT = 20;   // số câu hỏi tối đa mỗi sinh viên mỗi ngày
 const AI_MAX_ROUNDS = 5;     // số vòng gọi công cụ tối đa cho một câu hỏi
 const ACTION_TTL_MIN = 10;   // đề xuất hết hạn sau 10 phút
@@ -200,58 +206,63 @@ function run_tool(PDO $pdo, int $memberId, string $name, array $in, array &$acti
 }
 
 // ---------- 5. Gọi Gemini API ----------
+// Thử lần lượt từng mô hình trong AI_MODELS. Mô hình nào hết quota (429) hoặc
+// không dùng được (404) thì bỏ qua, chuyển sang mô hình kế tiếp.
 function call_gemini(string $apiKey, array $payload): array
 {
-    $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode(AI_MODEL) . ':generateContent';
     $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
     $lastDiag = '';
 
-    // Mạng ra ngoài của Render gói Free hay chập chờn: thử tối đa 3 lần, mỗi lần chờ ngắn.
-    for ($attempt = 1; $attempt <= 3; $attempt++) {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 20,
-            CURLOPT_CONNECTTIMEOUT => 8,
-            CURLOPT_NOSIGNAL => true,                       // để giới hạn thời gian có hiệu lực
-            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,         // tránh treo do IPv6 không có đường ra
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,  // tránh treo do HTTP/2
-            CURLOPT_FORBID_REUSE => true,                   // mỗi lần thử là kết nối mới
-            CURLOPT_FRESH_CONNECT => true,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
-                'x-goog-api-key: ' . $apiKey,
-            ],
-            CURLOPT_POSTFIELDS => $body,
-        ]);
-        $raw = curl_exec($ch);
-        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $err = curl_error($ch);
+    foreach (AI_MODELS as $model) {
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent';
 
-        if ($raw !== false && $status === 200) {
+        // Mạng ra ngoài của Render gói Free hay chập chờn: thử tối đa 3 lần cho mỗi mô hình.
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 20,
+                CURLOPT_CONNECTTIMEOUT => 8,
+                CURLOPT_NOSIGNAL => true,                       // để giới hạn thời gian có hiệu lực
+                CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,         // tránh treo do IPv6 không có đường ra
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,  // tránh treo do HTTP/2
+                CURLOPT_FORBID_REUSE => true,                   // mỗi lần thử là kết nối mới
+                CURLOPT_FRESH_CONNECT => true,
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: application/json',
+                    'x-goog-api-key: ' . $apiKey,
+                ],
+                CURLOPT_POSTFIELDS => $body,
+            ]);
+            $raw = curl_exec($ch);
+            $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err = curl_error($ch);
+
+            if ($raw !== false && $status === 200) {
+                curl_close($ch);
+                return json_decode($raw, true);
+            }
+
+            $lastDiag = sprintf(
+                'model=%s attempt=%d status=%d total=%.1fs err=%s',
+                $model, $attempt, $status,
+                curl_getinfo($ch, CURLINFO_TOTAL_TIME),
+                $err ?: 'none'
+            );
+            error_log("Gemini API try failed [$lastDiag]: " . mb_substr((string) $raw, 0, 200));
             curl_close($ch);
-            return json_decode($raw, true);
+
+            // 429 (hết quota) hoặc 404 (mô hình không dùng được) -> chuyển sang mô hình khác luôn
+            if ($status === 429 || $status === 404) break;
+            // Lỗi thật khác (400, 403...) -> thử lại cũng vô ích, chuyển mô hình khác
+            if ($status >= 400) break;
+            usleep(500000); // timeout/mạng chập chờn -> nghỉ 0,5 giây rồi thử lại cùng mô hình
         }
-
-        $lastDiag = sprintf(
-            'attempt=%d status=%d dns=%.1fs connect=%.1fs ssl=%.1fs total=%.1fs err=%s',
-            $attempt, $status,
-            curl_getinfo($ch, CURLINFO_NAMELOOKUP_TIME),
-            curl_getinfo($ch, CURLINFO_CONNECT_TIME),
-            curl_getinfo($ch, CURLINFO_APPCONNECT_TIME),
-            curl_getinfo($ch, CURLINFO_TOTAL_TIME),
-            $err ?: 'none'
-        );
-        error_log("Gemini API try failed [$lastDiag]: " . mb_substr((string) $raw, 0, 300));
-        curl_close($ch);
-
-        // Nếu Google trả về lỗi thật (4xx/5xx) thì thử lại cũng vô ích -> dừng luôn
-        if ($status >= 400) break;
-        usleep(500000); // nghỉ 0,5 giây rồi thử lại
+        // sang mô hình kế tiếp trong danh sách
     }
 
-    error_log("Gemini API error, giving up [$lastDiag]");
+    error_log("Gemini API error, tất cả mô hình đều lỗi [$lastDiag]");
     throw new RuntimeException('AI request failed');
 }
 

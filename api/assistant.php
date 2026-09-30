@@ -203,38 +203,57 @@ function run_tool(PDO $pdo, int $memberId, string $name, array $in, array &$acti
 function call_gemini(string $apiKey, array $payload): array
 {
     $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode(AI_MODEL) . ':generateContent';
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 45,
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4, // tránh treo do IPv6 không có đường ra trên Render
-        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1, // tránh treo do HTTP/2 trong môi trường bị hạn chế
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: application/json',
-            'x-goog-api-key: ' . $apiKey,
-        ],
-        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
-    ]);
-    $raw = curl_exec($ch);
-    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err = curl_error($ch);
-    if ($raw === false || $status !== 200) {
-        // Ghi lại mốc thời gian để biết treo ở đâu: tra tên miền / kết nối / chờ trả lời
-        $diag = sprintf(
-            'dns=%.1fs connect=%.1fs ssl=%.1fs total=%.1fs',
+    $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
+    $lastDiag = '';
+
+    // Mạng ra ngoài của Render gói Free hay chập chờn: thử tối đa 3 lần, mỗi lần chờ ngắn.
+    for ($attempt = 1; $attempt <= 3; $attempt++) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_NOSIGNAL => true,                       // để giới hạn thời gian có hiệu lực
+            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,         // tránh treo do IPv6 không có đường ra
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,  // tránh treo do HTTP/2
+            CURLOPT_FORBID_REUSE => true,                   // mỗi lần thử là kết nối mới
+            CURLOPT_FRESH_CONNECT => true,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'x-goog-api-key: ' . $apiKey,
+            ],
+            CURLOPT_POSTFIELDS => $body,
+        ]);
+        $raw = curl_exec($ch);
+        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
+
+        if ($raw !== false && $status === 200) {
+            curl_close($ch);
+            return json_decode($raw, true);
+        }
+
+        $lastDiag = sprintf(
+            'attempt=%d status=%d dns=%.1fs connect=%.1fs ssl=%.1fs total=%.1fs err=%s',
+            $attempt, $status,
             curl_getinfo($ch, CURLINFO_NAMELOOKUP_TIME),
             curl_getinfo($ch, CURLINFO_CONNECT_TIME),
             curl_getinfo($ch, CURLINFO_APPCONNECT_TIME),
-            curl_getinfo($ch, CURLINFO_TOTAL_TIME)
+            curl_getinfo($ch, CURLINFO_TOTAL_TIME),
+            $err ?: 'none'
         );
-        error_log("Gemini API error ($status) [$diag]: " . ($raw ?: $err));
+        error_log("Gemini API try failed [$lastDiag]: " . mb_substr((string) $raw, 0, 300));
         curl_close($ch);
-        throw new RuntimeException('AI request failed');
+
+        // Nếu Google trả về lỗi thật (4xx/5xx) thì thử lại cũng vô ích -> dừng luôn
+        if ($status >= 400) break;
+        usleep(500000); // nghỉ 0,5 giây rồi thử lại
     }
-    curl_close($ch);
-    return json_decode($raw, true);
+
+    error_log("Gemini API error, giving up [$lastDiag]");
+    throw new RuntimeException('AI request failed');
+}
 }
 
 // PHP đọc JSON {} thành mảng rỗng []; khi gửi lại cho Gemini phải đổi về object

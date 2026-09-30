@@ -15,7 +15,7 @@ define('AI_MODELS', array_values(array_filter(array_map('trim', explode(
     ',',
     getenv('GEMINI_MODELS') ?: getenv('GEMINI_MODEL') ?: 'gemini-3.1-flash-lite,gemini-2.5-flash-lite,gemini-2.5-flash,gemini-3.5-flash'
 )))));
-const AI_DAILY_LIMIT = 100;   // số câu hỏi tối đa mỗi sinh viên mỗi ngày
+const AI_DAILY_LIMIT = 20;   // số câu hỏi tối đa mỗi sinh viên mỗi ngày
 const AI_MAX_ROUNDS = 5;     // số vòng gọi công cụ tối đa cho một câu hỏi
 const ACTION_TTL_MIN = 10;   // đề xuất hết hạn sau 10 phút
 
@@ -123,6 +123,15 @@ $tools = [[
                 'required' => ['book_id'],
             ],
         ],
+        [
+            'name' => 'checkout_book',
+            'description' => 'Đề xuất cho sinh viên mượn một cuốn sách đang còn. Công cụ KHÔNG mượn ngay mà tạo đề xuất; sinh viên phải bấm nút Xác nhận.',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => ['book_id' => ['type' => 'integer', 'description' => 'ID sách lấy từ search_books']],
+                'required' => ['book_id'],
+            ],
+        ],
     ],
 ]];
 
@@ -132,9 +141,10 @@ Quy tắc:
 - KHÔNG dùng ký hiệu định dạng markdown: không dùng dấu sao (* hoặc **), không gạch đầu dòng, không tiêu đề. Chỉ viết chữ thuần.
 - Khi tìm được sách: trả lời một câu ngắn, ví dụ \"Có, thư viện còn sách cho môn này nhé:\". TUYỆT ĐỐI KHÔNG liệt kê tên sách, số lượng hay vị trí kệ trong câu trả lời, vì các thông tin đó đã được hiển thị sẵn ở thẻ sách ngay bên dưới. Khi không tìm thấy thì nói rõ là không có.
 - Chỉ dùng thông tin trả về từ công cụ. Tuyệt đối không bịa tên sách, số lượng hay vị trí kệ.
-- Gia hạn và đăng ký hàng chờ: gọi công cụ tương ứng, công cụ chỉ tạo đề xuất. Sau đó mời sinh viên bấm nút \"Xác nhận\" bên dưới bằng một câu ngắn. Không bao giờ nói là đã gia hạn hay đã đăng ký xong.
+- Mượn sách, gia hạn và đăng ký hàng chờ: gọi công cụ tương ứng (checkout_book / renew_loan / join_waitlist), công cụ chỉ tạo đề xuất. Sau đó mời sinh viên bấm nút \"Xác nhận\" bên dưới bằng một câu ngắn. Không bao giờ nói là đã mượn/gia hạn/đăng ký xong.
+- Khi sinh viên muốn mượn một cuốn đang còn, gọi checkout_book. Nếu cuốn đó đang hết, gọi join_waitlist thay vì checkout_book.
 - Nếu yêu cầu mơ hồ (ví dụ đang mượn nhiều cuốn giống nhau), hỏi lại ngắn gọn trước khi đề xuất.
-- Mượn sách, trả sách, tiền phạt, tài khoản: hướng dẫn ngắn gọn sinh viên dùng giao diện hoặc đến quầy thủ thư, bạn không làm được các việc đó.
+- Trả sách, tiền phạt, tài khoản: hướng dẫn ngắn gọn sinh viên đến quầy thủ thư, bạn không làm được các việc đó.
 - Câu hỏi ngoài phạm vi thư viện (làm bài tập, chuyện phiếm...): từ chối nhẹ nhàng bằng một câu.";
 
 // ---------- 4. Thực thi công cụ (luôn dưới quyền của sinh viên đang đăng nhập) ----------
@@ -201,6 +211,13 @@ function run_tool(PDO $pdo, int $memberId, string $name, array $in, array &$acti
             $id = create_pending($pdo, $memberId, 'join_waitlist', ['book_id' => (int) $chk['book']['id']]);
             $actions[] = ['id' => $id, 'label' => 'Xác nhận vào hàng chờ "' . $chk['book']['title'] . '"'];
             return ['ok' => true, 'status' => 'Đã tạo đề xuất, chờ sinh viên bấm Xác nhận', 'position_if_confirmed' => $chk['position']];
+
+        case 'checkout_book':
+            $chk = check_checkout($pdo, $memberId, (int) ($in['book_id'] ?? 0));
+            if (!$chk['ok']) return $chk;
+            $id = create_pending($pdo, $memberId, 'checkout_book', ['book_id' => (int) $chk['book']['id']]);
+            $actions[] = ['id' => $id, 'label' => 'Xác nhận mượn "' . $chk['book']['title'] . '" (hạn trả ' . date('d/m/Y', strtotime($chk['due_date'])) . ')'];
+            return ['ok' => true, 'status' => 'Đã tạo đề xuất, chờ sinh viên bấm Xác nhận', 'due_date_if_confirmed' => $chk['due_date']];
     }
     return ['error' => 'Công cụ không tồn tại'];
 }

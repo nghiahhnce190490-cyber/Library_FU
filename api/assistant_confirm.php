@@ -55,6 +55,16 @@ try {
         $pdo->prepare("INSERT INTO waitlist (book_id, member_id, status) VALUES (?, ?, 'waiting')")
             ->execute([$bookId, $memberId]);
         $message = 'Đã vào hàng chờ "' . $chk['book']['title'] . '", bạn đang ở vị trí số ' . $chk['position'];
+    } elseif ($act['action'] === 'checkout_book') {
+        $bookId = (int) ($payload['book_id'] ?? 0);
+        $chk = check_checkout($pdo, $memberId, $bookId, true); // khóa dòng sách khi kiểm tra
+        if (!$chk['ok']) throw new InvalidArgumentException($chk['reason']);
+        $borrow_date = date('Y-m-d');
+        $pdo->prepare("INSERT INTO loans (book_id, member_id, borrow_date, due_date, status) VALUES (?, ?, ?, ?, 'borrowed')")
+            ->execute([$bookId, $memberId, $borrow_date, $chk['due_date']]);
+        $pdo->prepare("UPDATE books SET available_qty = available_qty - 1 WHERE id = ?")->execute([$bookId]);
+        $shelf = $chk['book']['shelf_location'] ?: 'chưa cập nhật';
+        $message = 'Đã mượn "' . $chk['book']['title'] . '". Hạn trả ' . date('d/m/Y', strtotime($chk['due_date'])) . ', lấy sách ở kệ ' . $shelf;
     } else {
         throw new InvalidArgumentException('Loại đề xuất không hợp lệ');
     }

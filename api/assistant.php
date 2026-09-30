@@ -1,0 +1,279 @@
+<?php
+// Trợ lý AI LibGo (dùng Gemini API): nhận câu hỏi của sinh viên, cho AI gọi công cụ tra dữ liệu thật, trả câu trả lời.
+// AI KHÔNG bao giờ tự ghi dữ liệu: gia hạn / vào hàng chờ chỉ tạo "đề xuất",
+// sinh viên bấm Xác nhận thì assistant_confirm.php mới thực hiện.
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/library_rules.php';
+header('Content-Type: application/json; charset=utf-8');
+
+// Tên mô hình: đặt biến môi trường GEMINI_MODEL để đổi mà không sửa code.
+// Xem danh sách mô hình đang có trong Google AI Studio; nên chọn dòng "flash" (nhanh, rẻ).
+define('AI_MODEL', getenv('GEMINI_MODEL') ?: 'gemini-3.5-flash');
+const AI_DAILY_LIMIT = 20;   // số câu hỏi tối đa mỗi sinh viên mỗi ngày
+const AI_MAX_ROUNDS = 5;     // số vòng gọi công cụ tối đa cho một câu hỏi
+const ACTION_TTL_MIN = 10;   // đề xuất hết hạn sau 10 phút
+
+function out(int $code, array $data): void
+{
+    http_response_code($code);
+    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    out(405, ['error' => 'Method không được hỗ trợ']);
+}
+
+// ---------- 1. Kiểm tra đăng nhập, cấu hình, giới hạn lượt ----------
+$memberId = current_student_id();
+if (!$memberId) {
+    out(401, ['error' => 'Bạn cần đăng nhập bằng tài khoản sinh viên để dùng trợ lý']);
+}
+session_write_close(); // nhả khóa session để các request khác không phải chờ AI
+
+$apiKey = getenv('GEMINI_API_KEY');
+if (!$apiKey) {
+    out(503, ['error' => 'Trợ lý AI chưa được bật trên máy chủ này']);
+}
+
+$input = json_decode(file_get_contents('php://input'), true) ?: [];
+$message = trim((string) ($input['message'] ?? ''));
+if ($message === '' || mb_strlen($message) > 500) {
+    out(400, ['error' => 'Câu hỏi trống hoặc dài quá 500 ký tự']);
+}
+
+$today = date('Y-m-d');
+$pdo->prepare("INSERT INTO ai_usage (member_id, usage_date, count) VALUES (?, ?, 1)
+               ON DUPLICATE KEY UPDATE count = count + 1")->execute([$memberId, $today]);
+$st = $pdo->prepare("SELECT count FROM ai_usage WHERE member_id = ? AND usage_date = ?");
+$st->execute([$memberId, $today]);
+if ((int) $st->fetchColumn() > AI_DAILY_LIMIT) {
+    out(429, ['error' => 'Bạn đã dùng hết ' . AI_DAILY_LIMIT . ' câu hỏi hôm nay. Bạn vẫn tìm sách được bằng ô tìm kiếm.']);
+}
+
+// ---------- 2. Lịch sử hội thoại (chỉ nhận text, không nhận kết quả công cụ từ trình duyệt) ----------
+// Gemini dùng vai trò "user" và "model"; mỗi tin là một mảng "parts".
+function build_contents(array $history, string $message): array
+{
+    $raw = [];
+    foreach (array_slice($history, -10) as $h) {
+        if (!is_array($h)) continue;
+        $role = $h['role'] ?? '';
+        $text = $h['text'] ?? '';
+        if (in_array($role, ['user', 'assistant'], true) && is_string($text) && trim($text) !== '') {
+            $raw[] = ['role' => $role === 'assistant' ? 'model' : 'user', 'text' => mb_substr($text, 0, 1000)];
+        }
+    }
+    $raw[] = ['role' => 'user', 'text' => $message];
+
+    // Gộp các tin liền nhau cùng vai trò, bắt đầu bằng tin của sinh viên
+    $out = [];
+    foreach ($raw as $m) {
+        $last = count($out) - 1;
+        if ($last >= 0 && $out[$last]['role'] === $m['role']) {
+            $out[$last]['parts'][0]['text'] .= "\n" . $m['text'];
+        } else {
+            $out[] = ['role' => $m['role'], 'parts' => [['text' => $m['text']]]];
+        }
+    }
+    while ($out && $out[0]['role'] !== 'user') array_shift($out);
+    return $out;
+}
+$contents = build_contents($input['history'] ?? [], $message);
+
+// ---------- 3. Khai báo công cụ cho AI ----------
+$tools = [[
+    'functionDeclarations' => [
+        [
+            'name' => 'search_books',
+            'description' => 'Tìm sách trong kho thư viện theo từ khóa (tên sách, tác giả) và/hoặc mã môn học. Trả về số bản còn, vị trí kệ và số người đang chờ.',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'keyword' => ['type' => 'string', 'description' => 'Từ khóa trong tên sách hoặc tác giả, có thể để trống'],
+                    'subject_code' => ['type' => 'string', 'description' => 'Mã môn học, ví dụ MAS291, có thể để trống'],
+                ],
+            ],
+        ],
+        [
+            'name' => 'my_loans',
+            'description' => 'Xem các sách sinh viên đang mượn (chưa trả), hạn trả và số lần đã gia hạn. Không cần tham số.',
+        ],
+        [
+            'name' => 'renew_loan',
+            'description' => 'Đề xuất gia hạn một phiếu mượn của sinh viên. Công cụ KHÔNG gia hạn ngay mà tạo đề xuất; sinh viên phải bấm nút Xác nhận.',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => ['loan_id' => ['type' => 'integer', 'description' => 'ID phiếu mượn lấy từ my_loans']],
+                'required' => ['loan_id'],
+            ],
+        ],
+        [
+            'name' => 'join_waitlist',
+            'description' => 'Đề xuất đăng ký hàng chờ cho một cuốn sách đang hết. Công cụ KHÔNG đăng ký ngay mà tạo đề xuất; sinh viên phải bấm nút Xác nhận.',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => ['book_id' => ['type' => 'integer', 'description' => 'ID sách lấy từ search_books']],
+                'required' => ['book_id'],
+            ],
+        ],
+    ],
+]];
+
+$system = "Bạn là trợ lý thư viện LibGo của trường. Hôm nay là " . date('d/m/Y') . ".
+Quy tắc:
+- Luôn trả lời bằng tiếng Việt, ngắn gọn, thân thiện, xưng \"mình\" và gọi sinh viên là \"bạn\".
+- Chỉ dùng thông tin trả về từ công cụ. Không tìm thấy thì nói rõ là không tìm thấy. Tuyệt đối không bịa tên sách, số lượng hay vị trí kệ.
+- Gia hạn và đăng ký hàng chờ: gọi công cụ tương ứng, công cụ chỉ tạo đề xuất. Sau đó mời sinh viên bấm nút \"Xác nhận\" bên dưới. Không bao giờ nói là đã gia hạn hay đã đăng ký xong.
+- Nếu yêu cầu mơ hồ (ví dụ đang mượn nhiều cuốn giống nhau), hỏi lại trước khi đề xuất.
+- Mượn sách, trả sách, tiền phạt, tài khoản: hướng dẫn sinh viên dùng giao diện hoặc đến quầy thủ thư, bạn không làm được các việc đó.
+- Câu hỏi ngoài phạm vi thư viện (làm bài tập, chuyện phiếm...): từ chối nhẹ nhàng.";
+
+// ---------- 4. Thực thi công cụ (luôn dưới quyền của sinh viên đang đăng nhập) ----------
+function create_pending(PDO $pdo, int $memberId, string $action, array $payload): int
+{
+    $now = date('Y-m-d H:i:s');
+    $exp = date('Y-m-d H:i:s', time() + ACTION_TTL_MIN * 60);
+    $pdo->prepare("INSERT INTO ai_pending_actions (member_id, action, payload, created_at, expires_at)
+                   VALUES (?, ?, ?, ?, ?)")
+        ->execute([$memberId, $action, json_encode($payload), $now, $exp]);
+    return (int) $pdo->lastInsertId();
+}
+
+function run_tool(PDO $pdo, int $memberId, string $name, array $in, array &$actions, array &$books): array
+{
+    switch ($name) {
+        case 'search_books':
+            $sql = "SELECT b.id, b.title, b.author, b.subject_code, b.shelf_location, b.book_link,
+                           b.available_qty, b.total_qty,
+                           (SELECT COUNT(*) FROM waitlist w WHERE w.book_id = b.id AND w.status = 'waiting') AS waiting
+                    FROM books b WHERE 1=1";
+            $params = [];
+            $subject = trim((string) ($in['subject_code'] ?? ''));
+            if ($subject !== '') {
+                $sql .= " AND b.subject_code LIKE ?";
+                $params[] = "%$subject%";
+            }
+            // Mỗi từ khóa phải xuất hiện trong tên sách hoặc tác giả
+            $words = array_slice(array_filter(preg_split('/\s+/u', trim((string) ($in['keyword'] ?? ''))),
+                fn($w) => mb_strlen($w) >= 2), 0, 5);
+            foreach ($words as $w) {
+                $sql .= " AND (b.title LIKE ? OR b.author LIKE ?)";
+                $params[] = "%$w%";
+                $params[] = "%$w%";
+            }
+            if (!$params) return ['error' => 'Cần ít nhất một từ khóa hoặc mã môn'];
+            $sql .= " ORDER BY b.available_qty > 0 DESC, b.title LIMIT 8";
+            $st = $pdo->prepare($sql);
+            $st->execute($params);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+            $books = $rows; // gửi kèm cho giao diện để hiện thẻ sách
+            return ['count' => count($rows), 'books' => $rows];
+
+        case 'my_loans':
+            $st = $pdo->prepare("SELECT l.id AS loan_id, b.title, l.borrow_date, l.due_date, l.renew_count,
+                                        CASE WHEN l.due_date < CURDATE() THEN 'overdue' ELSE l.status END AS status
+                                 FROM loans l JOIN books b ON b.id = l.book_id
+                                 WHERE l.member_id = ? AND l.status IN ('borrowed','overdue')
+                                 ORDER BY l.due_date");
+            $st->execute([$memberId]);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+            return ['count' => count($rows), 'loans' => $rows, 'max_renews' => MAX_RENEWS];
+
+        case 'renew_loan':
+            $chk = check_renew($pdo, $memberId, (int) ($in['loan_id'] ?? 0));
+            if (!$chk['ok']) return $chk;
+            $id = create_pending($pdo, $memberId, 'renew_loan', ['loan_id' => (int) $chk['loan']['id']]);
+            $actions[] = ['id' => $id, 'label' => 'Xác nhận gia hạn "' . $chk['loan']['title'] . '" tới ' . date('d/m/Y', strtotime($chk['new_due_date']))];
+            return ['ok' => true, 'status' => 'Đã tạo đề xuất, chờ sinh viên bấm Xác nhận', 'new_due_date' => $chk['new_due_date']];
+
+        case 'join_waitlist':
+            $chk = check_waitlist($pdo, $memberId, (int) ($in['book_id'] ?? 0));
+            if (!$chk['ok']) return $chk;
+            $id = create_pending($pdo, $memberId, 'join_waitlist', ['book_id' => (int) $chk['book']['id']]);
+            $actions[] = ['id' => $id, 'label' => 'Xác nhận vào hàng chờ "' . $chk['book']['title'] . '"'];
+            return ['ok' => true, 'status' => 'Đã tạo đề xuất, chờ sinh viên bấm Xác nhận', 'position_if_confirmed' => $chk['position']];
+    }
+    return ['error' => 'Công cụ không tồn tại'];
+}
+
+// ---------- 5. Gọi Gemini API ----------
+function call_gemini(string $apiKey, array $payload): array
+{
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode(AI_MODEL) . ':generateContent';
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'x-goog-api-key: ' . $apiKey,
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
+    ]);
+    $raw = curl_exec($ch);
+    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($raw === false || $status !== 200) {
+        error_log("Gemini API error ($status): " . ($raw ?: $err)); // xem trong Logs của Render
+        throw new RuntimeException('AI request failed');
+    }
+    return json_decode($raw, true);
+}
+
+// PHP đọc JSON {} thành mảng rỗng []; khi gửi lại cho Gemini phải đổi về object
+function fix_parts(array $parts): array
+{
+    foreach ($parts as &$part) {
+        if (isset($part['functionCall']) && empty($part['functionCall']['args'])) {
+            $part['functionCall']['args'] = new stdClass();
+        }
+    }
+    return $parts;
+}
+
+// ---------- 6. Vòng lặp: AI chọn công cụ -> PHP chạy -> gửi kết quả -> AI trả lời ----------
+$actions = [];
+$books = [];
+try {
+    for ($round = 0; $round < AI_MAX_ROUNDS; $round++) {
+        $resp = call_gemini($apiKey, [
+            'systemInstruction' => ['parts' => [['text' => $system]]],
+            'contents' => $contents,
+            'tools' => $tools,
+        ]);
+        $parts = $resp['candidates'][0]['content']['parts'] ?? null;
+        if (!is_array($parts)) {
+            // Bị chặn bởi bộ lọc an toàn hoặc không có câu trả lời
+            error_log('Gemini empty response: ' . json_encode($resp));
+            out(200, ['reply' => 'Mình chưa trả lời được câu này, bạn hỏi cách khác giúp mình nhé.', 'actions' => $actions, 'books' => $books]);
+        }
+
+        $calls = array_values(array_filter($parts, fn($p) => isset($p['functionCall'])));
+        if (!$calls) {
+            $reply = '';
+            foreach ($parts as $p) {
+                if (isset($p['text']) && empty($p['thought'])) $reply .= $p['text'];
+            }
+            out(200, ['reply' => trim($reply), 'actions' => $actions, 'books' => $books]);
+        }
+
+        // Gửi lại nguyên phần trả lời của mô hình (giữ cả thoughtSignature nếu có)
+        $contents[] = ['role' => 'model', 'parts' => fix_parts($parts)];
+        $responses = [];
+        foreach ($calls as $p) {
+            $call = $p['functionCall'];
+            $result = run_tool($pdo, $memberId, $call['name'], (array) ($call['args'] ?? []), $actions, $books);
+            $fr = ['name' => $call['name'], 'response' => ['result' => $result]];
+            if (!empty($call['id'])) $fr['id'] = $call['id'];
+            $responses[] = ['functionResponse' => $fr];
+        }
+        $contents[] = ['role' => 'user', 'parts' => $responses];
+    }
+    out(200, ['reply' => 'Mình chưa xử lý xong yêu cầu này, bạn thử hỏi ngắn gọn hơn nhé.', 'actions' => $actions, 'books' => $books]);
+} catch (Throwable $e) {
+    error_log('Assistant error: ' . $e->getMessage());
+    out(502, ['error' => 'Trợ lý đang bận, bạn thử lại sau ít phút hoặc dùng ô tìm kiếm.']);
+}

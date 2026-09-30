@@ -15,7 +15,7 @@ define('AI_MODELS', array_values(array_filter(array_map('trim', explode(
     ',',
     getenv('GEMINI_MODELS') ?: getenv('GEMINI_MODEL') ?: 'gemini-3.1-flash-lite,gemini-2.5-flash-lite,gemini-2.5-flash,gemini-3.5-flash'
 )))));
-const AI_DAILY_LIMIT = 20;   // số câu hỏi tối đa mỗi sinh viên mỗi ngày
+const AI_DAILY_LIMIT = 100;   // số câu hỏi tối đa mỗi sinh viên mỗi ngày
 const AI_MAX_ROUNDS = 5;     // số vòng gọi công cụ tối đa cho một câu hỏi
 const ACTION_TTL_MIN = 10;   // đề xuất hết hạn sau 10 phút
 

@@ -208,6 +208,7 @@ function call_gemini(string $apiKey, array $payload): array
         CURLOPT_TIMEOUT => 45,
         CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4, // tránh treo do IPv6 không có đường ra trên Render
+        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1, // tránh treo do HTTP/2 trong môi trường bị hạn chế
         CURLOPT_HTTPHEADER => [
             'Content-Type: application/json',
             'x-goog-api-key: ' . $apiKey,
@@ -217,11 +218,20 @@ function call_gemini(string $apiKey, array $payload): array
     $raw = curl_exec($ch);
     $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $err = curl_error($ch);
-    curl_close($ch);
     if ($raw === false || $status !== 200) {
-        error_log("Gemini API error ($status): " . ($raw ?: $err)); // xem trong Logs của Render
+        // Ghi lại mốc thời gian để biết treo ở đâu: tra tên miền / kết nối / chờ trả lời
+        $diag = sprintf(
+            'dns=%.1fs connect=%.1fs ssl=%.1fs total=%.1fs',
+            curl_getinfo($ch, CURLINFO_NAMELOOKUP_TIME),
+            curl_getinfo($ch, CURLINFO_CONNECT_TIME),
+            curl_getinfo($ch, CURLINFO_APPCONNECT_TIME),
+            curl_getinfo($ch, CURLINFO_TOTAL_TIME)
+        );
+        error_log("Gemini API error ($status) [$diag]: " . ($raw ?: $err));
+        curl_close($ch);
         throw new RuntimeException('AI request failed');
     }
+    curl_close($ch);
     return json_decode($raw, true);
 }
 

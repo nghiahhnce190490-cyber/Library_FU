@@ -43,28 +43,31 @@
 }
 .lg-assistant__toggle:hover .lg-assistant__bubble { transform: scale(1.06); }
 
-/* Dòng chữ nhô ra, mặc định thu gọn (rộng 0) */
+/* Dòng chữ bên trái bong bóng, mặc định thu gọn; hiện khi có class lg-peek */
 .lg-assistant__hint {
   max-width: 0;
+  opacity: 0;
   overflow: hidden;
   white-space: nowrap;
-  opacity: 0;
   background: var(--lg-surface);
   color: var(--lg-text);
   border-radius: 999px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
   font-size: 14px;
   font-weight: 600;
-  transition: max-width 0.4s ease, opacity 0.3s ease, padding 0.4s ease, margin 0.4s ease;
   padding: 0;
   margin: 0;
+  transition: max-width 0.4s ease, opacity 0.3s ease, padding 0.4s ease, margin 0.4s ease;
 }
-/* Khi ở trạng thái "nhô ra" (JS thêm class lg-peek) */
 .lg-assistant.lg-peek .lg-assistant__hint {
-  max-width: 240px;
+  max-width: 260px;
   opacity: 1;
   padding: 10px 16px;
-  margin-left: 10px;
+  margin-right: 10px; /* khoảng cách giữa chữ và bong bóng */
+}
+/* Khi khung chat đang mở thì luôn ẩn dòng chữ cho gọn */
+.lg-assistant:has(.lg-assistant__panel:not([hidden])) .lg-assistant__hint {
+  display: none;
 }
 .lg-assistant__panel {
   position: absolute;

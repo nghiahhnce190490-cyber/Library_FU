@@ -11,8 +11,15 @@
   root.innerHTML = `
     <button class="lg-assistant__toggle" type="button" aria-expanded="false" aria-controls="lg-assistant-panel" aria-label="Mở trợ lý">
       <span class="lg-assistant__bubble" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/>
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="8" width="16" height="12" rx="2.5"/>
+          <path d="M12 8V4.5"/>
+          <circle cx="12" cy="3.2" r="1.1"/>
+          <path d="M2 13.5v2"/>
+          <path d="M22 13.5v2"/>
+          <circle cx="9" cy="14" r="1.3"/>
+          <circle cx="15" cy="14" r="1.3"/>
+          <path d="M9.5 17.2h5"/>
         </svg>
       </span>
       <span class="lg-assistant__hint" aria-hidden="true">Tôi có thể giúp gì cho bạn?</span>
@@ -32,7 +39,6 @@
 
   // Chỉ ẩn trợ lý ở màn hình đăng nhập. Nhận biết bằng cách nhìn giao diện:
   // khi màn hình ứng dụng (#appScreen) đang hiện tức là đã vào trong.
-  let peekTimer = null;
   function isInsideApp() {
     const app = document.getElementById("appScreen");
     if (app && getComputedStyle(app).display !== "none") return true;
@@ -48,9 +54,6 @@
       setOpen(false);
       clearConversation(); // đăng xuất -> xóa sạch hội thoại
       root.classList.remove("lg-peek");
-      if (peekTimer) { clearInterval(peekTimer); peekTimer = null; }
-    } else if (!peekTimer) {
-      startPeeking();
     }
   }
 
@@ -60,15 +63,17 @@
     log.innerHTML = "";
   }
 
-  // Thỉnh thoảng nhô dòng chữ ra khỏi bong bóng vài giây
-  function startPeeking() {
-    const peekOnce = () => {
-      if (root.hidden || !panel.hidden) return; // đang ẩn hoặc đang mở chat thì thôi
-      root.classList.add("lg-peek");
-      setTimeout(() => root.classList.remove("lg-peek"), 4000);
-    };
-    setTimeout(peekOnce, 2000);      // nhô lần đầu sau 2 giây
-    peekTimer = setInterval(peekOnce, 25000); // sau đó cứ ~25 giây nhô lại
+  // Chu kỳ chữ: hiện 5 giây, ẩn 2 giây, lặp lại.
+  // Chỉ chạy khi trợ lý đang hiện và khung chat đang đóng.
+  function peekCycle() {
+    if (root.hidden || !panel.hidden) {
+      root.classList.remove("lg-peek");
+      setTimeout(peekCycle, 2000);
+      return;
+    }
+    const showing = !root.classList.contains("lg-peek");
+    root.classList.toggle("lg-peek", showing);
+    setTimeout(peekCycle, showing ? 5000 : 2000);
   }
 
   const toggle = root.querySelector(".lg-assistant__toggle");
@@ -190,4 +195,5 @@
   // ngay khi đăng nhập hoặc đăng xuất (nhìn theo giao diện, không gọi server).
   refreshVisibility();
   setInterval(refreshVisibility, 1500);
+  setTimeout(peekCycle, 2000); // bắt đầu chu kỳ nhấp nháy chữ
 })();

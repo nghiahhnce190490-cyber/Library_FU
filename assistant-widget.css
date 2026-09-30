@@ -15,15 +15,56 @@
   font: inherit;
   color: var(--lg-text);
 }
+.lg-assistant[hidden] { display: none; }
+
+/* Nút bong bóng tròn */
 .lg-assistant__toggle {
+  display: flex;
+  align-items: center;
+  flex-direction: row-reverse; /* bong bóng bên phải, chữ nhô ra bên trái */
+  gap: 0;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.lg-assistant__bubble {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
   background: var(--lg-primary);
   color: var(--lg-primary-text);
-  border: 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  flex: none;
+  transition: transform 0.15s;
+}
+.lg-assistant__toggle:hover .lg-assistant__bubble { transform: scale(1.06); }
+
+/* Dòng chữ nhô ra, mặc định thu gọn (rộng 0) */
+.lg-assistant__hint {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  background: var(--lg-surface);
+  color: var(--lg-text);
   border-radius: 999px;
-  padding: 12px 18px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  font-size: 14px;
   font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  transition: max-width 0.4s ease, opacity 0.3s ease, padding 0.4s ease, margin 0.4s ease;
+  padding: 0;
+  margin: 0;
+}
+/* Khi ở trạng thái "nhô ra" (JS thêm class lg-peek) */
+.lg-assistant.lg-peek .lg-assistant__hint {
+  max-width: 240px;
+  opacity: 1;
+  padding: 10px 16px;
+  margin-left: 10px;
 }
 .lg-assistant__panel {
   position: absolute;

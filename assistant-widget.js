@@ -7,9 +7,15 @@
 
   const root = document.createElement("div");
   root.className = "lg-assistant";
+  root.hidden = true; // ẩn cho tới khi xác nhận đã đăng nhập
   root.innerHTML = `
-    <button class="lg-assistant__toggle" type="button" aria-expanded="false" aria-controls="lg-assistant-panel">
-      Hỏi trợ lý
+    <button class="lg-assistant__toggle" type="button" aria-expanded="false" aria-controls="lg-assistant-panel" aria-label="Mở trợ lý">
+      <span class="lg-assistant__bubble" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/>
+        </svg>
+      </span>
+      <span class="lg-assistant__hint" aria-hidden="true">Tôi có thể giúp gì cho bạn?</span>
     </button>
     <section class="lg-assistant__panel" id="lg-assistant-panel" hidden>
       <header class="lg-assistant__head">
@@ -24,6 +30,38 @@
     </section>`;
   document.body.appendChild(root);
 
+  // Chỉ hiện trợ lý khi đã đăng nhập. Kiểm tra định kỳ để lúc đăng nhập/đăng xuất tự cập nhật.
+  let peekTimer = null;
+  async function refreshVisibility() {
+    let loggedIn = false;
+    try {
+      const res = await fetch("api/session_check.php");
+      const data = await res.json();
+      loggedIn = !!data.loggedIn;
+    } catch {
+      loggedIn = false;
+    }
+    root.hidden = !loggedIn;
+    if (!loggedIn) {
+      setOpen(false);
+      root.classList.remove("lg-peek");
+      if (peekTimer) { clearInterval(peekTimer); peekTimer = null; }
+    } else if (!peekTimer) {
+      startPeeking();
+    }
+  }
+
+  // Thỉnh thoảng nhô dòng chữ ra khỏi bong bóng vài giây
+  function startPeeking() {
+    const peekOnce = () => {
+      if (root.hidden || !panel.hidden) return; // đang ẩn hoặc đang mở chat thì thôi
+      root.classList.add("lg-peek");
+      setTimeout(() => root.classList.remove("lg-peek"), 4000);
+    };
+    setTimeout(peekOnce, 2000);      // nhô lần đầu sau 2 giây
+    peekTimer = setInterval(peekOnce, 25000); // sau đó cứ ~25 giây nhô lại
+  }
+
   const toggle = root.querySelector(".lg-assistant__toggle");
   const panel = root.querySelector(".lg-assistant__panel");
   const log = root.querySelector(".lg-assistant__log");
@@ -34,6 +72,7 @@
     panel.hidden = !open;
     toggle.setAttribute("aria-expanded", String(open));
     if (open) {
+      root.classList.remove("lg-peek");
       if (!log.children.length) {
         addBubble("assistant", "Chào bạn! Mình tìm sách, xem sách bạn đang mượn, gia hạn và đăng ký hàng chờ giúp bạn được.");
       }
@@ -137,4 +176,9 @@
       send();
     }
   });
+
+  // Kiểm tra đăng nhập lúc tải trang, rồi kiểm tra lại mỗi 5 giây
+  // để trợ lý tự ẩn/hiện khi đăng nhập hoặc đăng xuất.
+  refreshVisibility();
+  setInterval(refreshVisibility, 5000);
 })();

@@ -44,11 +44,18 @@
     root.hidden = !loggedIn;
     if (!loggedIn) {
       setOpen(false);
+      clearConversation(); // đăng xuất -> xóa sạch hội thoại
       root.classList.remove("lg-peek");
       if (peekTimer) { clearInterval(peekTimer); peekTimer = null; }
     } else if (!peekTimer) {
       startPeeking();
     }
+  }
+
+  // Xóa toàn bộ hội thoại (dùng khi đăng xuất)
+  function clearConversation() {
+    history.length = 0;
+    log.innerHTML = "";
   }
 
   // Thỉnh thoảng nhô dòng chữ ra khỏi bong bóng vài giây

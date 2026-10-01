@@ -54,6 +54,11 @@ library-php/
 ├── Dockerfile            # Đóng gói để chạy trên Render
 ├── .dockerignore         # Loại file nội bộ (.git, README, schema.sql) khỏi bản deploy
 ├── ca-cert.pem           # Chứng chỉ SSL của SkySQL (chỉ cần khi kết nối SkySQL)
+├── admin/                # Trang thủ thư: https://thuvienfpt.id.vn/admin/
+│   ├── index.php         #   Chặn nếu chưa đăng nhập thủ thư, rồi dùng lại index.html
+│   ├── intake.js         #   Tab "Nhập sách" bằng mã vạch (quét ISBN, tự điền thông tin)
+│   └── intake.css        #   Giao diện tab "Nhập sách"
+├── sql/                  # File SQL nâng cấp CSDL (Docker không đưa thư mục này lên web)
 └── api/
     ├── auth_login.php        # Đăng nhập chung (thủ thư hoặc sinh viên)
     ├── session_check.php     # Kiểm tra đang đăng nhập với vai trò gì
@@ -141,6 +146,9 @@ Tất cả API nhận và trả JSON. Quyền được kiểm tra ở máy chủ
 | POST | `api/member_password.php` | Thủ thư | Đặt lại mật khẩu `{student_code, password}` |
 | POST | `api/checkout.php` | Sinh viên, thủ thư | Mượn sách. Sinh viên: `{book_id}`. Thủ thư mượn hộ: `{book_id, student_code}` |
 | POST | `api/checkin.php` | Thủ thư | Xác nhận trả `{loan_id}`, trả về tiền phạt |
+| GET | `api/isbn_lookup.php?isbn=` | Thủ thư | Tra ISBN: sách đã có → Google Books → Open Library |
+| POST | `api/isbn_save.php` | Thủ thư | Lưu sách mới theo ISBN, hoặc cộng thêm bản nếu đã có |
+| GET | `api/book_options.php` | Thủ thư | Danh sách mã môn và vị trí kệ đã dùng (gợi ý khi nhập) |
 | GET | `api/loans.php?status=borrowed,overdue` | Sinh viên (chỉ của mình), thủ thư (tất cả) | Danh sách phiếu mượn |
 
 ---
@@ -159,6 +167,12 @@ Tất cả API nhận và trả JSON. Quyền được kiểm tra ở máy chủ
 ---
 
 ## Dành cho bạn làm giao diện
+
+- **Hai trang, một file giao diện.** Sinh viên dùng `https://thuvienfpt.id.vn/`, thủ thư dùng `/admin/`.
+  Cả hai đều lấy giao diện từ `index.html`; đăng nhập xong web tự chuyển đúng trang theo vai trò.
+  Phần chỉ dành cho thủ thư đánh dấu `data-role="admin"`. Không cần sửa gì trong thư mục `admin/` khi đổi giao diện.
+- Tab **Nhập sách** (`#tab-intake`) dùng các `id`: `isbnInput`, `lookupBtn`, `cameraBtn`, `noIsbnBtn`, `intakeForm`,
+  `intakeStatus`, `existsBox`, `sessionList`... Giao diện riêng của tab này ở `admin/intake.css`.
 
 - Chỉ cần sửa **`index.html`**, **`style.css`**, và `app.js` nếu cần.
 - **Giữ nguyên các `id`** mà `app.js` đang dùng (ví dụ `loginForm`, `bookList`, `loanList`,

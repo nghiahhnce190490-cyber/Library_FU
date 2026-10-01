@@ -88,6 +88,7 @@
           <span class="nav-pill" id="navPill" aria-hidden="true"></span>
           <button class="tab-btn active" data-tab="search" data-role="admin student">Tìm & mượn sách</button>
           <button class="tab-btn" data-tab="return" data-role="student">Sách của tôi <span class="tab-badge" id="myLoanBadge" hidden></span></button>
+          <button class="tab-btn" data-tab="intake" data-role="admin">Nhập sách</button>
           <button class="tab-btn" data-tab="admin" data-role="admin">Quản lý</button>
         </nav>
 
@@ -174,6 +175,75 @@
         </div>
         <div id="mySummary" class="stats stats-3"></div>
         <div id="loanList" class="loan-list"></div>
+      </section>
+
+      <!-- ---------- TAB: NHẬP SÁCH BẰNG MÃ VẠCH (thủ thư, chỉ chạy ở trang /admin/) ----------
+           Logic ở admin/intake.js, giao diện riêng ở admin/intake.css. Giữ nguyên các id. -->
+      <section id="tab-intake" class="tab-panel">
+        <div class="page-head">
+          <div>
+            <h2>Nhập sách</h2>
+            <p class="muted">Quét mã vạch sau bìa sách. Thông tin tự điền, bạn chỉ cần thêm mã môn, vị trí kệ và số lượng.</p>
+          </div>
+        </div>
+
+        <div class="intake-layout">
+          <div class="panel">
+            <div class="scanbar" id="scanbar" data-state="idle">
+              <label for="isbnInput" class="sr-only">Mã ISBN</label>
+              <input id="isbnInput" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="Quét hoặc gõ ISBN" />
+              <button type="button" class="btn btn-primary" id="lookupBtn">Tra cứu</button>
+            </div>
+            <div class="scan-actions">
+              <button type="button" class="link-btn" id="cameraBtn">📷 Quét bằng camera</button>
+              <button type="button" class="link-btn" id="noIsbnBtn">Sách không có ISBN</button>
+            </div>
+            <div id="cameraBox" class="camera-box" hidden></div>
+
+            <p class="intake-status" id="intakeStatus" role="status" aria-live="polite"></p>
+
+            <div class="intake-exists" id="existsBox" hidden>
+              <img id="existsCover" alt="" hidden />
+              <div>
+                <strong id="existsTitle"></strong>
+                <p class="muted small" id="existsMeta"></p>
+              </div>
+            </div>
+
+            <form id="intakeForm" class="intake-form" hidden novalidate>
+              <div class="intake-cover" id="intakeCover"><span>Chưa có ảnh bìa</span></div>
+              <div class="intake-fields">
+                <div class="form-grid" id="intakeInfo">
+                  <label class="field span-2"><span>Tên sách *</span><input name="title" maxlength="255" /></label>
+                  <label class="field span-2"><span>Tác giả</span><input name="author" maxlength="255" /></label>
+                  <label class="field"><span>Nhà xuất bản</span><input name="publisher" maxlength="255" /></label>
+                  <label class="field"><span>Năm xuất bản</span><input name="publish_year" inputmode="numeric" maxlength="4" /></label>
+                  <label class="field span-2"><span>Link đọc online / tài liệu điện tử</span><input name="book_link" type="url" placeholder="https://..." /></label>
+                </div>
+                <div class="form-grid intake-place">
+                  <label class="field" data-place><span>Mã môn</span><input name="subject_code" list="subjectList" maxlength="50" placeholder="VD: MAE101" /></label>
+                  <label class="field" data-place><span>Vị trí kệ</span><input name="shelf_location" list="shelfList" maxlength="100" placeholder="VD: Kệ A1 - Tầng 1" /></label>
+                  <label class="field"><span>Số lượng *</span><input name="qty" type="number" min="1" max="500" value="1" /></label>
+                </div>
+                <div class="intake-foot">
+                  <label class="intake-check" id="keepPlaceLabel"><input type="checkbox" id="keepPlace" checked /> Giữ mã môn và kệ cho cuốn tiếp theo</label>
+                  <div class="intake-buttons">
+                    <button type="button" class="btn btn-outline" id="intakeCancel">Hủy</button>
+                    <button type="submit" class="btn btn-primary" id="intakeSave">Lưu sách</button>
+                  </div>
+                </div>
+              </div>
+            </form>
+            <datalist id="subjectList"></datalist>
+            <datalist id="shelfList"></datalist>
+          </div>
+
+          <aside class="panel intake-session">
+            <div class="panel-head"><span class="panel-icon">🧾</span><h3>Vừa nhập</h3></div>
+            <p class="muted small" id="sessionCount">Chưa nhập cuốn nào trong lần này.</p>
+            <ol id="sessionList" class="intake-list"></ol>
+          </aside>
+        </div>
       </section>
 
       <!-- ---------- TAB: QUẢN LÝ (thủ thư) ---------- -->
@@ -475,7 +545,7 @@
   <div id="toast" role="status" aria-live="polite"></div>
   <button type="button" id="toTop" aria-label="Lên đầu trang">↑</button>
 
-  <script src="app.js?v=22"></script>
+  <script src="app.js?v=23"></script>
  <script src="assistant-widget.js?v=4" defer></script>
 </body>
 </html>

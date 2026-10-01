@@ -4,6 +4,9 @@
 // =========================================================
 
 // ---------- Trạng thái ----------
+// Trang thủ thư (/admin/) đặt window.LIBGO_ADMIN_PAGE = true trước khi tải file này.
+// Trang chính (/) chỉ dành cho sinh viên; thủ thư đăng nhập sẽ được chuyển sang /admin/.
+const IS_ADMIN_PAGE = window.LIBGO_ADMIN_PAGE === true;
 let currentStudent = null; // { id, name, student_code } hoặc null
 let isAdmin = false;
 let allLoans = [];         // cache phiếu mượn cho tab Quản lý
@@ -171,6 +174,7 @@ function openTab(tab) {
   if (tab === "return") loadMyLoans();
   if (tab === "admin") loadAdmin();
   if (tab === "profile") loadProfile();
+  if (tab === "intake" && window.LibgoIntake) window.LibgoIntake.open();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 document.querySelectorAll("#mainNav .tab-btn").forEach((btn) => {
@@ -188,6 +192,12 @@ async function refreshSession() {
   isAdmin = !!data.loggedIn;
   currentStudent = data.student || null;
   const role = isAdmin ? "admin" : currentStudent ? "student" : null;
+
+  // Tách trang theo vai trò:
+  //  - Thủ thư đang ở trang chính      -> chuyển sang /admin/
+  //  - Ở trang /admin/ mà không phải thủ thư (sinh viên, chưa đăng nhập, hết phiên) -> về trang chính
+  if (role === "admin" && !IS_ADMIN_PAGE) { location.replace("admin/"); return; }
+  if (IS_ADMIN_PAGE && role !== "admin") { location.replace("./"); return; }
 
   document.getElementById("loginScreen").style.display = role ? "none" : "grid";
   document.getElementById("appScreen").style.display = role ? "block" : "none";

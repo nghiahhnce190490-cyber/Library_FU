@@ -31,11 +31,14 @@ if (($_GET['online'] ?? '1') === '0') {
     json_out(["status" => "not_found", "book" => ["isbn" => $isbn]]);
 }
 
-// 2. Google Books
+// 2. Google Books — cần GOOGLE_BOOKS_KEY trên Render (không có key Google trả lỗi 429 hết lượt)
 $key = getenv('GOOGLE_BOOKS_KEY');
-$g = fetch_json("https://www.googleapis.com/books/v1/volumes?q=isbn:$isbn" . ($key ? "&key=" . urlencode($key) : ""));
+$g = fetch_json("https://www.googleapis.com/books/v1/volumes?maxResults=1&q=isbn:$isbn" . ($key ? "&key=" . urlencode($key) : ""));
 if (!empty($g['items'][0]['volumeInfo'])) {
     $v = $g['items'][0]['volumeInfo'];
+    $gid = urlencode($g['items'][0]['id'] ?? '');
+    $view = $g['items'][0]['accessInfo']['viewability'] ?? '';
+    $access = $view === 'ALL_PAGES' ? 'full' : ($view === 'PARTIAL' ? 'partial' : 'none');
     $title = trim(($v['title'] ?? '') . (!empty($v['subtitle']) ? ': ' . $v['subtitle'] : ''));
     if ($title !== '') {
         json_out([
@@ -48,6 +51,8 @@ if (!empty($g['items'][0]['volumeInfo'])) {
                 "publisher"    => $v['publisher'] ?? '',
                 "publish_year" => extract_year($v['publishedDate'] ?? ''),
                 "cover_url"    => safe_https($v['imageLinks']['thumbnail'] ?? ''),
+                "book_link"    => $gid ? "https://books.google.com/books?id=$gid" . ($access === 'none' ? '' : '&printsec=frontcover') : '',
+                "read_access"  => $gid ? $access : '',
             ],
         ]);
     }
@@ -67,6 +72,8 @@ if (!empty($o["ISBN:$isbn"]['title'])) {
             "publisher"    => $b['publishers'][0]['name'] ?? '',
             "publish_year" => extract_year($b['publish_date'] ?? ''),
             "cover_url"    => safe_https($b['cover']['medium'] ?? ''),
+            "book_link"    => safe_https($b['url'] ?? ''),
+            "read_access"  => !empty($b['url']) ? 'none' : '',
         ],
     ]);
 }

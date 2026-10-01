@@ -199,8 +199,9 @@
     lookupBtn.disabled = true;
 
     try {
-      // Bước 1: máy chủ kiểm tra mã hợp lệ + sách đã có trong thư viện chưa (nhanh)
-      const data = await api("isbn_lookup.php?online=0&isbn=" + encodeURIComponent(raw));
+      // Bước 1: máy chủ kiểm tra sách đã có trong thư viện chưa, rồi tra Google Books
+      // (bằng GOOGLE_BOOKS_KEY đặt trên Render) và Open Library
+      const data = await api("isbn_lookup.php?isbn=" + encodeURIComponent(raw));
       currentIsbn = data.book.isbn;
       isbnInput.value = currentIsbn;
 
@@ -210,9 +211,12 @@
         return;
       }
 
-      // Bước 2: chưa có -> trình duyệt tra Google Books, rồi Open Library
-      setStatus("Đang tìm thông tin sách trên mạng...", "", "searching");
-      const online = await lookupOnline(currentIsbn);
+      // Bước 2: máy chủ không tra được -> trình duyệt thử lại (dự phòng)
+      let online = data.status === "found" ? { source: data.source, book: data.book } : null;
+      if (!online) {
+        setStatus("Đang tìm thêm trên mạng...", "", "searching");
+        online = await lookupOnline(currentIsbn);
+      }
       if (online) {
         setStatus(`Đã tìm thấy trên ${online.source}. Kiểm tra lại thông tin rồi thêm mã môn và kệ.`, "ok", "found");
         showForm("found", online.book);

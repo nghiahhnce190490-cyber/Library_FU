@@ -30,6 +30,7 @@ $subject_code   = strtoupper($str('subject_code', 50));
 $shelf_location = $str('shelf_location', 100);
 $book_link      = $str('book_link', 500);
 $cover_url      = $str('cover_url', 500);
+$read_access    = in_array($d['read_access'] ?? '', ['full', 'partial', 'none'], true) ? $d['read_access'] : null;
 $year           = ($d['publish_year'] ?? '') === '' ? null : (int) $d['publish_year'];
 $qty            = (int) ($d['qty'] ?? 0);
 
@@ -74,12 +75,13 @@ try {
 
     $stmt = $pdo->prepare(
         "INSERT INTO books (isbn, title, author, publisher, publish_year, cover_url,
-                            subject_code, shelf_location, book_link, total_qty, available_qty)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                            subject_code, shelf_location, book_link, read_access, total_qty, available_qty)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     $stmt->execute([
         $isbn, $title, $author ?: null, $publisher ?: null, $year, $cover_url ?: null,
-        $subject_code ?: null, $shelf_location ?: null, $book_link ?: null, $qty, $qty,
+        $subject_code ?: null, $shelf_location ?: null, $book_link ?: null,
+        $book_link ? $read_access : null, $qty, $qty,
     ]);
     $id = (int) $pdo->lastInsertId();
     $pdo->commit();

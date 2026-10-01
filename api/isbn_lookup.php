@@ -25,6 +25,12 @@ if ($book = $stmt->fetch(PDO::FETCH_ASSOC)) {
     json_out(["status" => "exists", "book" => $book]);
 }
 
+// online=0: chỉ tra trong CSDL, phần tra trên mạng để trình duyệt làm
+// (máy chủ Render hay bị Google / Open Library chặn hoặc giới hạn lượt gọi)
+if (($_GET['online'] ?? '1') === '0') {
+    json_out(["status" => "not_found", "book" => ["isbn" => $isbn]]);
+}
+
 // 2. Google Books
 $key = getenv('GOOGLE_BOOKS_KEY');
 $g = fetch_json("https://www.googleapis.com/books/v1/volumes?q=isbn:$isbn" . ($key ? "&key=" . urlencode($key) : ""));

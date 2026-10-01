@@ -17,6 +17,7 @@
   let mode = null;
   let currentIsbn = "";
   let currentCover = "";
+  let currentAccess = "";
   let sessionTotal = 0;
   let optionsLoaded = false;
 
@@ -53,6 +54,68 @@
     img.onerror = () => form.classList.add("no-cover"); // link ảnh hỏng thì ẩn khung bìa
     box.append(img);
     box.classList.add("has-img");
+  }
+
+  // ---------- Tra trên mạng ngay từ trình duyệt ----------
+  // (máy chủ Render hay bị Google chặn, trình duyệt của thủ thư thì không)
+  const withTimeout = () => (window.AbortSignal && AbortSignal.timeout ? { signal: AbortSignal.timeout(8000) } : {});
+  const httpsOnly = (u) => (u ? String(u).replace(/^http:/, "https:").replace("&edge=curl", "") : "");
+
+  async function lookupOnline(isbn) {
+    // 1) Google Books
+    try {
+      const res = await fetch(
+        "https://www.googleapis.com/books/v1/volumes?maxResults=1&q=isbn:" + isbn
+          + "&fields=items(id,volumeInfo(title,subtitle,authors,publisher,publishedDate,imageLinks),accessInfo(viewability))",
+        withTimeout()
+      );
+      if (res.ok) {
+        const it = ((await res.json()).items || [])[0];
+        const v = (it && it.volumeInfo) || {};
+        if (v.title) {
+          const view = (it.accessInfo || {}).viewability;
+          const access = view === "ALL_PAGES" ? "full" : view === "PARTIAL" ? "partial" : "none";
+          const id = encodeURIComponent(it.id || "");
+          return {
+            source: "Google Books",
+            book: {
+              isbn,
+              title: [v.title, v.subtitle].filter(Boolean).join(": "),
+              author: (v.authors || []).join(", "),
+              publisher: v.publisher || "",
+              publish_year: (String(v.publishedDate || "").match(/\d{4}/) || [""])[0],
+              cover_url: httpsOnly(v.imageLinks && (v.imageLinks.thumbnail || v.imageLinks.smallThumbnail)),
+              book_link: id ? `https://books.google.com/books?id=${id}` + (access === "none" ? "" : "&printsec=frontcover") : "",
+              read_access: id ? access : "",
+            },
+          };
+        }
+      }
+    } catch (e) { /* thử nguồn tiếp theo */ }
+
+    // 2) Open Library
+    try {
+      const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`, withTimeout());
+      if (res.ok) {
+        const b = (await res.json())["ISBN:" + isbn];
+        if (b && b.title) {
+          return {
+            source: "Open Library",
+            book: {
+              isbn,
+              title: [b.title, b.subtitle].filter(Boolean).join(": "),
+              author: (b.authors || []).map((a) => a.name).join(", "),
+              publisher: ((b.publishers || [])[0] || {}).name || "",
+              publish_year: (String(b.publish_date || "").match(/\d{4}/) || [""])[0],
+              cover_url: httpsOnly((b.cover || {}).medium),
+              book_link: b.url || "",
+              read_access: b.url ? "none" : "",
+            },
+          };
+        }
+      }
+    } catch (e) { /* không có nguồn nào */ }
+    return null;
   }
 
   // ---------- Hiện form theo từng trường hợp ----------
@@ -94,7 +157,9 @@
       f.author.value = book.author || "";
       f.publisher.value = book.publisher || "";
       f.publish_year.value = book.publish_year || "";
+      f.book_link.value = book.book_link || "";
       currentCover = book.cover_url || "";
+      currentAccess = book.read_access || "";
       setCover(currentCover);
     }
 
@@ -115,6 +180,7 @@
     mode = null;
     currentIsbn = "";
     currentCover = "";
+    currentAccess = "";
     form.hidden = true;
     $("existsBox").hidden = true;
     isbnInput.value = "";
@@ -133,16 +199,23 @@
     lookupBtn.disabled = true;
 
     try {
-      const data = await api("isbn_lookup.php?isbn=" + encodeURIComponent(raw));
+      // Bước 1: máy chủ kiểm tra mã hợp lệ + sách đã có trong thư viện chưa (nhanh)
+      const data = await api("isbn_lookup.php?online=0&isbn=" + encodeURIComponent(raw));
       currentIsbn = data.book.isbn;
       isbnInput.value = currentIsbn;
 
       if (data.status === "exists") {
         setStatus("Sách này đã có trong thư viện. Nhập số bản muốn thêm.", "warn", "exists");
         showForm("exists", data.book);
-      } else if (data.status === "found") {
-        setStatus(`Đã tìm thấy trên ${data.source}. Kiểm tra lại thông tin rồi thêm mã môn và kệ.`, "ok", "found");
-        showForm("found", data.book);
+        return;
+      }
+
+      // Bước 2: chưa có -> trình duyệt tra Google Books, rồi Open Library
+      setStatus("Đang tìm thông tin sách trên mạng...", "", "searching");
+      const online = await lookupOnline(currentIsbn);
+      if (online) {
+        setStatus(`Đã tìm thấy trên ${online.source}. Kiểm tra lại thông tin rồi thêm mã môn và kệ.`, "ok", "found");
+        showForm("found", online.book);
       } else {
         setStatus("Không tìm thấy thông tin trên mạng. Nhập tay một lần, lần sau quét lại sẽ ra ngay.", "", "idle");
         showForm("manual", data.book);
@@ -200,6 +273,7 @@
         publisher: f.publisher.value,
         publish_year: f.publish_year.value,
         cover_url: currentCover,
+        read_access: f.book_link.value.trim() ? currentAccess : "",
         subject_code: f.subject_code.value,
         shelf_location: f.shelf_location.value,
         book_link: f.book_link.value,

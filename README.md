@@ -54,10 +54,8 @@ library-php/
 ├── Dockerfile            # Đóng gói để chạy trên Render
 ├── .dockerignore         # Loại file nội bộ (.git, README, schema.sql) khỏi bản deploy
 ├── ca-cert.pem           # Chứng chỉ SSL của SkySQL (chỉ cần khi kết nối SkySQL)
-├── admin/                # Trang thủ thư: https://thuvienfpt.id.vn/admin/
-│   ├── index.php         #   Chặn nếu chưa đăng nhập thủ thư, rồi dùng lại index.html
-│   ├── intake.js         #   Tab "Nhập sách" bằng mã vạch (quét ISBN, tự điền thông tin)
-│   └── intake.css        #   Giao diện tab "Nhập sách"
+├── intake.js             # Tab "Nhập sách" của thủ thư: quét mã vạch ISBN, tự điền thông tin sách
+├── intake.css            # Giao diện tab "Nhập sách"
 ├── sql/                  # File SQL nâng cấp CSDL (Docker không đưa thư mục này lên web)
 └── api/
     ├── auth_login.php        # Đăng nhập chung (thủ thư hoặc sinh viên)
@@ -168,11 +166,9 @@ Tất cả API nhận và trả JSON. Quyền được kiểm tra ở máy chủ
 
 ## Dành cho bạn làm giao diện
 
-- **Hai trang, một file giao diện.** Sinh viên dùng `https://thuvienfpt.id.vn/`, thủ thư dùng `/admin/`.
-  Cả hai đều lấy giao diện từ `index.html`; đăng nhập xong web tự chuyển đúng trang theo vai trò.
-  Phần chỉ dành cho thủ thư đánh dấu `data-role="admin"`. Không cần sửa gì trong thư mục `admin/` khi đổi giao diện.
-- Tab **Nhập sách** (`#tab-intake`) dùng các `id`: `isbnInput`, `lookupBtn`, `cameraBtn`, `noIsbnBtn`, `intakeForm`,
-  `intakeStatus`, `existsBox`, `sessionList`... Giao diện riêng của tab này ở `admin/intake.css`.
+- Sinh viên và thủ thư dùng chung trang `index.html`. Tab nào chỉ dành cho thủ thư thì đánh dấu `data-role="admin"`.
+- Tab **Nhập sách** (`#tab-intake`, chỉ thủ thư thấy) dùng các `id`: `isbnInput`, `lookupBtn`, `cameraBtn`, `noIsbnBtn`, `intakeForm`,
+  `intakeStatus`, `existsBox`, `sessionList`... Giao diện riêng của tab này ở `intake.css`.
 
 - Chỉ cần sửa **`index.html`**, **`style.css`**, và `app.js` nếu cần.
 - **Giữ nguyên các `id`** mà `app.js` đang dùng (ví dụ `loginForm`, `bookList`, `loanList`,

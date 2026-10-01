@@ -1,0 +1,171 @@
+:root {
+  --ink: #1c2b3a;
+  --muted: #5d6b79;
+  --brand: #2e5c8a;
+  --brand-dark: #234a70;
+  --paper: #f2f4f6;
+  --surface: #ffffff;
+  --line: #d5dbe1;
+  --ok: #2f7d5b;
+  --warn: #a5660f;
+  --err: #b42318;
+  --radius: 8px;
+  font-family: "Be Vietnam Pro", "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-size: 15px; line-height: 1.5; }
+h1, h2 { margin: 0; line-height: 1.25; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* ---------- Thanh trên ---------- */
+.topbar {
+  display: flex; align-items: center; gap: 24px;
+  padding: 12px 28px; background: var(--brand); color: #fff;
+}
+.brand { font-weight: 700; font-size: 18px; }
+.brand span { font-weight: 400; opacity: .8; margin-left: 6px; }
+.topnav { display: flex; gap: 4px; flex: 1; }
+.topnav a { color: #fff; text-decoration: none; padding: 6px 12px; border-radius: 6px; opacity: .8; }
+.topnav a.active { background: rgba(255,255,255,.16); opacity: 1; font-weight: 600; }
+.user { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+.topbar .btn-ghost { color: #fff; border-color: rgba(255,255,255,.5); }
+
+/* ---------- Bố cục ---------- */
+.layout {
+  max-width: 1200px; margin: 0 auto; padding: 28px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start;
+}
+.intake { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; }
+.intake h1 { font-size: 24px; }
+.hint { color: var(--muted); margin: 6px 0 20px; max-width: 60ch; }
+
+/* ---------- Ô quét: điểm nhấn chính ---------- */
+.scanbar {
+  --state: var(--line);
+  display: flex; border: 2px solid var(--state); border-radius: var(--radius);
+  background: var(--surface); overflow: hidden; transition: border-color .15s;
+}
+.scanbar::before {
+  /* dải sọc mã vạch bên trái, đổi màu theo trạng thái */
+  content: ""; width: 44px; flex: none;
+  background: repeating-linear-gradient(90deg,
+    var(--state) 0 3px, transparent 3px 5px, var(--state) 5px 6px, transparent 6px 9px);
+  margin: 10px 0 10px 14px; transition: background .15s;
+}
+.scanbar[data-state="idle"]      { --state: #9aa7b4; }
+.scanbar[data-state="searching"] { --state: var(--brand); }
+.scanbar[data-state="found"]     { --state: var(--ok); }
+.scanbar[data-state="exists"]    { --state: var(--warn); }
+.scanbar[data-state="error"]     { --state: var(--err); }
+.scanbar:focus-within { box-shadow: 0 0 0 3px rgba(46,92,138,.18); }
+.scanbar input {
+  flex: 1; min-width: 0; border: 0; outline: 0; padding: 16px 14px;
+  font: inherit; font-size: 22px; font-weight: 500; letter-spacing: .06em;
+  font-variant-numeric: tabular-nums; color: var(--ink); background: transparent;
+}
+.scanbar input::placeholder { font-size: 16px; letter-spacing: 0; font-weight: 400; color: #8a96a3; }
+.scanbar button { border-radius: 0; padding: 0 24px; font-size: 15px; }
+
+.scan-actions { display: flex; gap: 18px; margin-top: 10px; }
+.camera { margin-top: 12px; max-width: 420px; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); }
+
+.status { min-height: 24px; margin: 14px 0 0; font-weight: 500; }
+.status.ok { color: var(--ok); }
+.status.warn { color: var(--warn); }
+.status.err { color: var(--err); }
+.status.muted { color: var(--muted); }
+
+/* ---------- Sách đã có ---------- */
+.exists {
+  display: flex; gap: 14px; align-items: center; margin-top: 12px;
+  padding: 12px 14px; border-left: 4px solid var(--warn); background: #fbf5ea; border-radius: 0 var(--radius) var(--radius) 0;
+}
+.exists img { width: 48px; height: 68px; object-fit: cover; border-radius: 3px; }
+.exists p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+
+/* ---------- Form ---------- */
+.book-form { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 24px; margin-top: 20px; }
+.cover {
+  width: 140px; aspect-ratio: 2 / 3; border-radius: 4px; background: var(--paper);
+  border: 1px dashed var(--line); display: grid; place-items: center; overflow: hidden;
+  color: var(--muted); font-size: 13px; text-align: center; padding: 8px;
+}
+.cover img { width: 100%; height: 100%; object-fit: cover; }
+.cover.has-img { border-style: solid; padding: 0; }
+
+.info-fields, .place-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+.place-fields { grid-template-columns: 1fr 1fr 110px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+.span2 { grid-column: span 2; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 500; color: var(--muted); }
+label input {
+  font: inherit; font-size: 15px; color: var(--ink); padding: 9px 10px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--surface);
+}
+label input:focus { outline: 2px solid var(--brand); outline-offset: -1px; border-color: var(--brand); }
+label input.invalid { border-color: var(--err); }
+
+.form-foot { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 20px; flex-wrap: wrap; }
+.check { flex-direction: row; align-items: center; gap: 8px; font-weight: 400; color: var(--ink); font-size: 14px; }
+.buttons { display: flex; gap: 10px; }
+
+/* Sách đã có: chỉ còn ô số lượng */
+.book-form.is-exists, .book-form.no-cover { grid-template-columns: minmax(0, 1fr); }
+.book-form.is-exists .cover-col, .book-form.no-cover .cover-col { display: none; }
+.book-form.is-exists .place-fields { margin-top: 0; padding-top: 0; border-top: 0; grid-template-columns: 160px; }
+
+/* ---------- Nút ---------- */
+button {
+  font: inherit; font-weight: 600; cursor: pointer; border: 0; border-radius: 6px;
+  padding: 10px 18px; background: var(--brand); color: #fff;
+}
+button:hover { background: var(--brand-dark); }
+button:disabled { opacity: .55; cursor: wait; }
+button:focus-visible, a:focus-visible { outline: 3px solid #f0b429; outline-offset: 2px; }
+.btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn-ghost:hover { background: rgba(0,0,0,.04); }
+.btn-link { background: none; color: var(--brand); padding: 0; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+.btn-link:hover { background: none; color: var(--brand-dark); }
+
+/* ---------- Danh sách vừa nhập ---------- */
+.session { position: sticky; top: 20px; }
+.session h2 { font-size: 16px; }
+.session-count { color: var(--muted); font-size: 14px; margin: 4px 0 12px; }
+.session-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.session-list li {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  padding: 10px 12px; font-size: 14px;
+}
+.session-list li strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-list li span { color: var(--muted); font-size: 13px; }
+.session-list li.new { animation: flash 1.2s ease-out; }
+@keyframes flash { from { background: #e6f3ec; } to { background: var(--surface); } }
+
+/* ---------- Toast ---------- */
+#toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 6px;
+  font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none;
+}
+#toast.show { opacity: 1; }
+
+/* ---------- Màn hình nhỏ ---------- */
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); padding: 16px; }
+  .session { position: static; }
+  .topbar { flex-wrap: wrap; padding: 12px 16px; gap: 12px; }
+}
+@media (max-width: 600px) {
+  .intake { padding: 18px; }
+  .book-form { grid-template-columns: minmax(0, 1fr); }
+  .cover { width: 110px; }
+  .info-fields, .place-fields { grid-template-columns: minmax(0, 1fr); }
+  .span2 { grid-column: auto; }
+  .scanbar input { font-size: 18px; padding: 14px 10px; }
+  .scanbar::before { width: 28px; margin-left: 10px; }
+  .scanbar button { padding: 0 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
